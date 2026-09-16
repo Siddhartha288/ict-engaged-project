@@ -10,6 +10,7 @@ const assessmentRoutes = require('./routes/assessments');
 const roadmapRoutes = require('./routes/roadmap');
 const adminRoutes = require('./routes/admin');
 const sectorRoutes = require('./routes/sectors');
+const notesRoutes = require('./routes/notes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
@@ -36,6 +37,7 @@ app.use('/api', assessmentRoutes);
 app.use('/api/assessments', roadmapRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/sectors', sectorRoutes);
+app.use('/api/notes', notesRoutes);
 
 const staticDir = path.join(__dirname, 'public');
 if (fs.existsSync(staticDir)) {

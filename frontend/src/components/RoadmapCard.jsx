@@ -1,17 +1,44 @@
-import { Clock3, ArrowUpRight, ExternalLink } from 'lucide-react';
+import { Clock3, ArrowUpRight, ExternalLink, Check } from 'lucide-react';
 import { VendorLink } from './VendorFinder';
 
-export default function RoadmapCard({ action }) {
+export default function RoadmapCard({ action, onToggleComplete }) {
+  const completed = Boolean(action.completed);
+
   return (
-    <article className="rounded-xl border border-border bg-surface p-5 transition hover:border-teal/40">
+    <article
+      className={`rounded-xl border p-5 transition ${
+        completed ? 'border-teal/40 bg-teal/5' : 'border-border bg-surface hover:border-teal/40'
+      }`}
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber/15 font-mono text-xs font-semibold text-amber">
             {action.priority}
           </span>
-          <h3 className="font-display text-base font-semibold text-text">{action.title}</h3>
+          <h3
+            className={`font-display text-base font-semibold ${
+              completed ? 'text-muted line-through' : 'text-text'
+            }`}
+          >
+            {action.title}
+          </h3>
         </div>
-        <ArrowUpRight size={16} className="shrink-0 text-muted" />
+        {onToggleComplete ? (
+          <button
+            type="button"
+            onClick={() => onToggleComplete(!completed)}
+            aria-pressed={completed}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+              completed
+                ? 'border-teal/50 bg-teal/15 text-teal'
+                : 'border-border text-muted hover:border-teal/40 hover:text-text'
+            }`}
+          >
+            <Check size={12} /> {completed ? 'Done' : 'Mark done'}
+          </button>
+        ) : (
+          <ArrowUpRight size={16} className="shrink-0 text-muted" />
+        )}
       </div>
 
       <p className="mb-4 text-sm leading-relaxed text-muted">{action.description}</p>

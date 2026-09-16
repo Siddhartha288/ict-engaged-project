@@ -261,4 +261,98 @@ router.get('/assessments/:id', authenticate, async (req, res, next) => {
   }
 });
 
+router.get('/assessments/:id/benchmark', authenticate, async (req, res, next) => {
+  try {
+    const assessmentId = Number(req.params.id);
+    if (!Number.isInteger(assessmentId) || assessmentId < 1) {
+      return res.status(400).json({ message: 'Invalid assessment id' });
+    }
+
+    const assessments = await query(
+      `SELECT a.id, a.user_id, a.sector_id, s.label AS sector_label
+       FROM assessments a
+       LEFT JOIN sectors s ON s.id = a.sector_id
+       WHERE a.id = :id LIMIT 1`,
+      { id: assessmentId }
+    );
+    if (!assessments.length) {
+      return res.status(404).json({ message: 'Assessment not found' });
+    }
+
+    const assessment = assessments[0];
+    if (assessment.user_id !== req.user.id && req.user.role !== 'advisor') {
+      return res.status(403).json({ message: 'Insufficient permissions' });
+    }
+
+    if (!assessment.sector_id) {
+      return res.json({
+        sector_label: null,
+        sample_size: 0,
+        overall_avg_score: null,
+        categories: [],
+        insufficient_data: true,
+      });
+    }
+
+    // Latest assessment per business within this sector.
+    const latest = await query(
+      `SELECT a1.id, a1.total_score
+       FROM assessments a1
+       WHERE a1.sector_id = :sector_id
+         AND a1.id = (
+           SELECT MAX(a2.id) FROM assessments a2
+           WHERE a2.user_id = a1.user_id AND a2.sector_id = :sector_id
+         )`,
+      { sector_id: assessment.sector_id }
+    );
+
+    const sampleSize = latest.length;
+    if (sampleSize < 2) {
+      return res.json({
+        sector_label: assessment.sector_label,
+        sample_size: sampleSize,
+        overall_avg_score: null,
+        categories: [],
+        insufficient_data: true,
+      });
+    }
+
+    const overallAvgScore = Math.round(
+      latest.reduce((sum, r) => sum + Number(r.total_score), 0) / sampleSize
+    );
+
+    const ids = latest.map((r) => r.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const [categoryRows] = await pool.execute(
+      `SELECT c.\`key\` AS category_key, c.label AS category_label,
+              AVG(sub.pct) AS avg_score
+       FROM (
+         SELECT r.assessment_id, q.category_id, AVG(r.answer) * 100 AS pct
+         FROM responses r
+         JOIN questions q ON q.id = r.question_id
+         WHERE r.assessment_id IN (${placeholders})
+         GROUP BY r.assessment_id, q.category_id
+       ) sub
+       JOIN categories c ON c.id = sub.category_id
+       GROUP BY c.id
+       ORDER BY c.id ASC`,
+      ids
+    );
+
+    return res.json({
+      sector_label: assessment.sector_label,
+      sample_size: sampleSize,
+      overall_avg_score: overallAvgScore,
+      categories: categoryRows.map((r) => ({
+        key: r.category_key,
+        label: r.category_label,
+        avg_score: Math.round(Number(r.avg_score)),
+      })),
+      insufficient_data: false,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 module.exports = router;

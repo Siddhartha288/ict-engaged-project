@@ -146,13 +146,18 @@ router.post('/:id/roadmap', authenticate, async (req, res, next) => {
       })),
     });
 
+    const roadmapWithProgress = {
+      ...roadmap,
+      actions: roadmap.actions.map((action) => ({ ...action, completed: false })),
+    };
+
     let roadmapId;
     if (existing.length) {
       await query(
         `UPDATE roadmaps SET content = :content, created_at = CURRENT_TIMESTAMP WHERE assessment_id = :assessment_id`,
         {
           assessment_id: assessment.id,
-          content: JSON.stringify(roadmap),
+          content: JSON.stringify(roadmapWithProgress),
         }
       );
       roadmapId = existing[0].id;
@@ -161,7 +166,7 @@ router.post('/:id/roadmap', authenticate, async (req, res, next) => {
         `INSERT INTO roadmaps (assessment_id, content) VALUES (:assessment_id, :content)`,
         {
           assessment_id: assessment.id,
-          content: JSON.stringify(roadmap),
+          content: JSON.stringify(roadmapWithProgress),
         }
       );
       roadmapId = result.insertId;
@@ -170,7 +175,7 @@ router.post('/:id/roadmap', authenticate, async (req, res, next) => {
     return res.status(existing.length ? 200 : 201).json({
       id: roadmapId,
       assessment_id: assessment.id,
-      content: roadmap,
+      content: roadmapWithProgress,
       created_at: new Date().toISOString(),
     });
   } catch (err) {
@@ -178,6 +183,54 @@ router.post('/:id/roadmap', authenticate, async (req, res, next) => {
     return res.status(500).json({
       message: err.message || 'Failed to generate roadmap',
     });
+  }
+});
+
+router.patch('/:id/roadmap/actions/:index', authenticate, async (req, res, next) => {
+  try {
+    const assessmentId = Number(req.params.id);
+    const actionIndex = Number(req.params.index);
+    if (!Number.isInteger(assessmentId) || assessmentId < 1) {
+      return res.status(400).json({ message: 'Invalid assessment id' });
+    }
+    if (!Number.isInteger(actionIndex) || actionIndex < 0) {
+      return res.status(400).json({ message: 'Invalid action index' });
+    }
+
+    const { assessment, error } = await loadAssessmentForUser(assessmentId, req.user);
+    if (error) return res.status(error.status).json({ message: error.message });
+
+    const rows = await query(
+      `SELECT id, content FROM roadmaps WHERE assessment_id = :id LIMIT 1`,
+      { id: assessment.id }
+    );
+    if (!rows.length) {
+      return res.status(404).json({ message: 'No roadmap generated yet' });
+    }
+
+    let content;
+    try {
+      content = JSON.parse(rows[0].content);
+    } catch {
+      return res.status(500).json({ message: 'Roadmap content is corrupted' });
+    }
+    if (!Array.isArray(content.actions) || actionIndex >= content.actions.length) {
+      return res.status(400).json({ message: 'Action index out of range' });
+    }
+
+    content.actions[actionIndex] = {
+      ...content.actions[actionIndex],
+      completed: Boolean(req.body?.completed),
+    };
+
+    await query(`UPDATE roadmaps SET content = :content WHERE id = :id`, {
+      id: rows[0].id,
+      content: JSON.stringify(content),
+    });
+
+    return res.json({ id: rows[0].id, assessment_id: assessment.id, content });
+  } catch (err) {
+    return next(err);
   }
 });
 

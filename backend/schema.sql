@@ -8,6 +8,7 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS advisor_notes;
 DROP TABLE IF EXISTS roadmaps;
 DROP TABLE IF EXISTS responses;
 DROP TABLE IF EXISTS assessments;
@@ -105,6 +106,21 @@ CREATE TABLE roadmaps (
   UNIQUE KEY uq_roadmaps_assessment (assessment_id),
   CONSTRAINT fk_roadmaps_assessment
     FOREIGN KEY (assessment_id) REFERENCES assessments(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE advisor_notes (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  business_user_id INT UNSIGNED NOT NULL,
+  advisor_user_id INT UNSIGNED NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_notes_business (business_user_id),
+  CONSTRAINT fk_notes_business
+    FOREIGN KEY (business_user_id) REFERENCES users(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_notes_advisor
+    FOREIGN KEY (advisor_user_id) REFERENCES users(id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

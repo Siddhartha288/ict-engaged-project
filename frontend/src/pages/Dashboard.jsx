@@ -9,18 +9,22 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { Sparkles, RefreshCw } from 'lucide-react';
+import { Sparkles, RefreshCw, TrendingUp, MessageSquare } from 'lucide-react';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import RadarScoreChart from '../components/RadarScoreChart';
 import RoadmapCard from '../components/RoadmapCard';
 import VendorFinder from '../components/VendorFinder';
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [assessments, setAssessments] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
+  const [benchmark, setBenchmark] = useState(null);
+  const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [roadmapLoading, setRoadmapLoading] = useState(false);
   const [error, setError] = useState('');
@@ -40,6 +44,7 @@ export default function Dashboard() {
     if (!id) {
       setDetail(null);
       setRoadmap(null);
+      setBenchmark(null);
       return;
     }
     const { data } = await api.get(`/assessments/${id}`);
@@ -50,7 +55,29 @@ export default function Dashboard() {
     } catch {
       setRoadmap(null);
     }
+    try {
+      const bench = await api.get(`/assessments/${id}/benchmark`);
+      setBenchmark(bench.data);
+    } catch {
+      setBenchmark(null);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!user || user.role !== 'business') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/notes/${user.id}`);
+        if (!cancelled) setNotes(data.notes || []);
+      } catch {
+        if (!cancelled) setNotes([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +118,19 @@ export default function Dashboard() {
       setError(err.response?.data?.message || 'Failed to generate roadmap');
     } finally {
       setRoadmapLoading(false);
+    }
+  };
+
+  const toggleAction = async (index, completed) => {
+    if (!selectedId || !roadmap) return;
+    const prevActions = roadmap.actions;
+    const nextActions = prevActions.map((a, i) => (i === index ? { ...a, completed } : a));
+    setRoadmap({ ...roadmap, actions: nextActions });
+    try {
+      await api.patch(`/assessments/${selectedId}/roadmap/actions/${index}`, { completed });
+    } catch (err) {
+      setRoadmap({ ...roadmap, actions: prevActions });
+      setError(err.response?.data?.message || 'Failed to update action');
     }
   };
 
@@ -177,6 +217,55 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+
+            {benchmark && !benchmark.insufficient_data && (
+              <div className="mt-5 border-t border-border pt-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="flex items-center gap-1.5 font-display text-sm font-semibold text-text">
+                    <TrendingUp size={14} className="text-teal" /> {benchmark.sector_label} benchmark
+                  </h3>
+                  <span className="font-mono text-xs text-muted">{benchmark.sample_size} businesses</span>
+                </div>
+                <div className="mb-3 flex items-center gap-4 text-sm">
+                  <span className="text-muted">
+                    You: <span className="font-mono text-amber">{detail.total_score}%</span>
+                  </span>
+                  <span className="text-muted">
+                    Sector avg: <span className="font-mono text-teal">{benchmark.overall_avg_score}%</span>
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {benchmark.categories.map((bc) => {
+                    const mine = (detail.categories || []).find((c) => c.key === bc.key)?.score ?? 0;
+                    return (
+                      <div key={bc.key}>
+                        <div className="mb-1 flex justify-between text-[11px] text-muted">
+                          <span>{bc.label}</span>
+                          <span className="font-mono">
+                            {mine}% vs {bc.avg_score}% avg
+                          </span>
+                        </div>
+                        <div className="relative h-1.5 rounded-full bg-ink/60">
+                          <div
+                            className="absolute h-1.5 rounded-full bg-amber"
+                            style={{ width: `${Math.min(mine, 100)}%` }}
+                          />
+                          <div
+                            className="absolute h-1.5 w-0.5 bg-teal"
+                            style={{ left: `${Math.min(bc.avg_score, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {benchmark && benchmark.insufficient_data && (
+              <p className="mt-5 border-t border-border pt-4 text-xs text-muted">
+                Not enough other businesses in your sector yet to show a benchmark.
+              </p>
+            )}
           </div>
 
           <div className="space-y-6">
@@ -227,9 +316,38 @@ export default function Dashboard() {
               {roadmap ? (
                 <div className="space-y-4">
                   <p className="text-sm leading-relaxed text-muted">{roadmap.intro}</p>
+                  {(roadmap.actions || []).length > 0 && (
+                    <div>
+                      {(() => {
+                        const total = roadmap.actions.length;
+                        const done = roadmap.actions.filter((a) => a.completed).length;
+                        const pct = total ? Math.round((done / total) * 100) : 0;
+                        return (
+                          <>
+                            <div className="mb-1 flex justify-between text-xs font-mono text-muted">
+                              <span>Progress</span>
+                              <span>
+                                {done}/{total} done
+                              </span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-ink/60">
+                              <div
+                                className="h-1.5 rounded-full bg-teal transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                   <div className="space-y-3">
                     {(roadmap.actions || []).map((action, i) => (
-                      <RoadmapCard key={`${action.title}-${i}`} action={action} />
+                      <RoadmapCard
+                        key={`${action.title}-${i}`}
+                        action={action}
+                        onToggleComplete={(completed) => toggleAction(i, completed)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -241,6 +359,24 @@ export default function Dashboard() {
             </div>
 
             <VendorFinder />
+
+            {notes.length > 0 && (
+              <div className="rounded-xl border border-border bg-surface p-5">
+                <h3 className="mb-4 flex items-center gap-1.5 font-display text-lg font-semibold">
+                  <MessageSquare size={16} className="text-teal" /> Advisor notes
+                </h3>
+                <div className="space-y-3">
+                  {notes.map((n) => (
+                    <div key={n.id} className="rounded-lg border border-border bg-ink/40 p-3">
+                      <p className="text-sm leading-relaxed text-text">{n.content}</p>
+                      <p className="mt-2 font-mono text-[11px] text-muted">
+                        {n.advisor_name} · {new Date(n.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
