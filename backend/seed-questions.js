@@ -147,6 +147,87 @@ const SECTORS = {
       ['Do you store client contact details securely for reminders and offers?', 'Keep client contact details in one secure system, not scattered notebooks, with consent for marketing.'],
     ],
   },
+  entertainment: {
+    online_presence: [
+      ['Do you have a website or listing showing your activities, pricing, and how to book?', 'Create a simple website or Google Business Profile listing your activities, prices, and a clear way to book.'],
+      ['Can customers find you on Google Maps, TripAdvisor, or a local "things to do" directory?', 'Claim your Google Business Profile and a TripAdvisor listing so you show up when people search for things to do nearby.'],
+      ['Do you post photos or videos of your experience on social media regularly?', 'Post one photo or short video from a recent session or event to Instagram/TikTok each week to show what customers can expect.'],
+    ],
+    digital_payments: [
+      ['Can customers book and pay online in advance instead of only paying on arrival?', 'Add an online booking-and-pay page, or a payment link, so customers can secure a spot ahead of time.'],
+      ['Can you sell gift cards or vouchers online?', 'Set up digital gift vouchers through your booking platform or a simple payment link - a popular add-on revenue stream.'],
+      ['Do you track ticket or booking payments digitally instead of a cash box or paper log?', "Move ticket or session sales into your booking platform's built-in payment tracking instead of a manual log."],
+    ],
+    marketing: [
+      ['Do you run promotions or special event nights to attract new customers?', 'Plan one themed event or discount night this month and promote it on social media a week in advance.'],
+      ['Do you use social media ads to reach people looking for things to do locally?', 'Start a small local-radius ad campaign on Instagram or Facebook targeting people searching for activities nearby.'],
+      ['Do you collect and showcase customer reviews or highlight videos?', 'Ask your next 3 groups of happy customers to leave a Google or TripAdvisor review, and repost their photos with permission.'],
+    ],
+    operations: [
+      ['Do you manage bookings and capacity digitally instead of a paper sign-up sheet?', "Move bookings into an online scheduling tool that tracks capacity automatically so you don't overbook sessions."],
+      ['Do you schedule and communicate with casual or part-time staff using a digital tool?', "Use a shared digital roster app so casual staff can see and swap shifts without a group text chain."],
+      ['Do you track equipment or venue maintenance digitally?', 'Keep a simple shared checklist or spreadsheet for equipment or venue maintenance instead of relying on memory.'],
+    ],
+    data_use: [
+      ['Do you track which sessions, events, or activities are most popular?', 'Check your booking platform\'s report monthly to see which sessions or time slots sell out fastest.'],
+      ['Do you track repeat customers or group bookings?', "Use your booking system's customer history to spot repeat visitors and consider a loyalty perk for them."],
+      ['Do you collect customer contact details for future promotions, with permission?', 'Add an opt-in email or SMS signup at checkout or booking so you can promote future events to past customers.'],
+    ],
+  },
+  technology: {
+    online_presence: [
+      ['Do you have a website that clearly showcases your services, portfolio, or past work?', 'Build a simple portfolio site showing 3-5 examples of past projects and the services you offer.'],
+      ['Do you have an active, up-to-date profile on LinkedIn or a relevant freelance/agency platform?', 'Update your LinkedIn or platform profile with your current services and recent work.'],
+      ['Do you publish any technical content, case studies, or project write-ups online?', 'Write one short case study or LinkedIn post about a recent project and the result it delivered for the client.'],
+    ],
+    digital_payments: [
+      ['Can clients pay your invoices online via card, bank transfer link, or similar?', 'Add a "Pay Now" link to your invoices using Stripe, PayPal, or your accounting software.'],
+      ['Do you use milestone-based or subscription billing where appropriate?', 'Set up milestone or recurring invoices in your invoicing tool instead of manually billing after each project stage.'],
+      ['Do you track project payments and outstanding balances digitally?', 'Log project payments and balances in your invoicing tool or a spreadsheet instead of tracking it from memory.'],
+    ],
+    marketing: [
+      ['Do you generate leads through content, SEO, or online communities in your niche?', 'Answer 2-3 questions a week in a relevant online community linking back to your expertise, not just your service.'],
+      ['Do you ask clients for testimonials, referrals, or case studies after project completion?', 'Ask your next 2 satisfied clients for a short testimonial or a referral to someone else who might need your services.'],
+      ['Do you have a clear way for new leads to contact or book a call with you online?', 'Add a scheduling link to your site and email signature so leads can book a call directly.'],
+    ],
+    operations: [
+      ['Do you use project management software to track tasks and deadlines?', 'Move active projects into a tool like Trello, Asana, or Notion so tasks and deadlines are tracked in one place.'],
+      ['Do you use version control or a backup system for client work?', 'Set up version control (Git) or automatic cloud backups for client deliverables so work is never at risk of being lost.'],
+      ['Do you use a client portal or shared folder to exchange files and updates?', 'Set up a shared client folder or simple portal for files and progress updates instead of email attachments back and forth.'],
+    ],
+    data_use: [
+      ['Do you track how much time each project actually takes versus what you quoted?', 'Log actual hours per project in a time-tracking tool and compare against your quotes monthly to price more accurately.'],
+      ['Do you track where new clients come from, such as referral, LinkedIn, or website?', 'Ask new clients how they found you and log the answer to see which channels actually bring in work.'],
+      ['Do you monitor uptime, performance, or usage for the systems you build or manage?', 'Set up a free monitoring tool for anything you host or manage for clients.'],
+    ],
+  },
+  education: {
+    online_presence: [
+      ['Do you have a website listing your courses, sessions, or programs and how to enroll?', 'Create a simple website or profile listing your courses, schedule, pricing, and how to sign up.'],
+      ['Can students or parents find you on Google or a relevant directory such as a tutoring or training marketplace?', 'Claim your Google Business Profile and list on a relevant directory so local students can find you.'],
+      ['Do you share sample content, testimonials, or results online?', 'Post one short success story, sample lesson, or student result to your website or social page this month.'],
+    ],
+    digital_payments: [
+      ['Can students or parents pay for lessons or courses online?', "Set up online payment for bookings or course enrolment so people aren't limited to cash or bank transfer only."],
+      ['Do you offer online package or term payments instead of only per-session cash?', 'Offer a term or package pricing option through an online payment link to encourage upfront commitment.'],
+      ['Do you track payments and outstanding fees digitally?', 'Track student payments and outstanding fees in a spreadsheet or your booking platform instead of a notebook.'],
+    ],
+    marketing: [
+      ['Do you send updates or newsletters to current and past students or parents?', 'Send a short termly email update to current and past students or parents with news or new course offerings.'],
+      ['Do you ask for testimonials or referrals from happy students or parents?', 'Ask your next 2 satisfied students or parents for a short testimonial you can use on your site or social page.'],
+      ['Do you run promotions for new enrolments, such as trial sessions or referral discounts?', 'Offer a free or discounted trial session and promote it on social media or your local community group.'],
+    ],
+    operations: [
+      ['Do you manage class schedules and bookings using a digital tool?', 'Move class or session bookings into an online scheduling tool instead of texts or a paper calendar.'],
+      ['Do you track student attendance and progress digitally?', 'Use a simple spreadsheet or app to track attendance and progress notes per student instead of loose paper notes.'],
+      ['Do you share learning materials digitally instead of only on paper?', 'Set up a shared folder or simple learning platform to distribute materials so students can access them anytime.'],
+    ],
+    data_use: [
+      ['Do you track enrolment numbers and trends over time?', 'Log enrolment numbers each term in a spreadsheet to spot trends and plan capacity ahead of time.'],
+      ['Do you track student outcomes or progress to show results?', 'Keep a simple record of student progress or results so you can show real outcomes to prospective families.'],
+      ['Do you store student and parent contact details securely in one place?', 'Move student and parent contact details into one secure spreadsheet or system instead of scattered notes or texts.'],
+    ],
+  },
   other: {
     online_presence: [
       ['Do you have a mobile-friendly website that clearly explains what you offer?', 'Check your site on your own phone. If text is tiny or buttons are hard to tap, switch to a mobile-friendly template and rewrite the homepage to say what you sell in one sentence.'],

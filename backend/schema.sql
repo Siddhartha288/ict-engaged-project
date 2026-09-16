@@ -119,10 +119,13 @@ INSERT INTO categories (`key`, label) VALUES
 -- Seed sectors
 INSERT INTO sectors (`key`, label) VALUES
   ('retail', 'Retail & E-commerce'),
-  ('hospitality', 'Hospitality & Food Service'),
+  ('hospitality', 'Food & Beverage'),
   ('trades', 'Trades & Home Services'),
   ('professional_services', 'Professional Services'),
   ('health_wellness', 'Health & Wellness'),
+  ('entertainment', 'Entertainment & Recreation'),
+  ('technology', 'Technology & Digital Services'),
+  ('education', 'Education & Training'),
   ('other', 'General / Other');
 
 -- Question data is seeded separately by seed-questions.js (uses parameterized
