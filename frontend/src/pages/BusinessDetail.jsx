@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { ArrowLeft, MessageSquare, Send, TrendingUp } from 'lucide-react';
+import { ArrowLeft, ClipboardList, MessageSquare, Send, TrendingUp } from 'lucide-react';
 import api from '../api/client';
 import RadarScoreChart from '../components/RadarScoreChart';
 import RoadmapCard from '../components/RoadmapCard';
@@ -170,8 +170,20 @@ export default function BusinessDetail() {
           <h1 className="font-display text-3xl font-bold">{business.business_name || business.name}</h1>
           <p className="mt-1 text-sm text-muted">
             {business.name} · {business.email}
+            {!business.claimed && (
+              <span className="ml-1.5 rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted">
+                unclaimed
+              </span>
+            )}
           </p>
         </div>
+        <div className="flex items-end gap-3">
+          <Link
+            to={`/advisor/businesses/${business.id}/assessment`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm text-muted transition hover:border-teal/40 hover:text-text"
+          >
+            <ClipboardList size={14} /> Run assessment
+          </Link>
         <label className="block">
           <span className="mb-1.5 block text-xs font-mono uppercase tracking-wide text-muted">
             Follow-up status
@@ -188,7 +200,8 @@ export default function BusinessDetail() {
               </option>
             ))}
           </select>
-        </label>
+          </label>
+        </div>
       </div>
 
       {error && (

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 
 export default function Register() {
   const { register, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -13,6 +14,7 @@ export default function Register() {
     role: 'business',
     business_name: '',
     sector: '',
+    advisor_code: (searchParams.get('code') || '').toUpperCase(),
   });
   const [sectors, setSectors] = useState([]);
   const [error, setError] = useState('');
@@ -43,6 +45,7 @@ export default function Register() {
         ...form,
         business_name: form.role === 'business' ? form.business_name : undefined,
         sector: form.role === 'business' ? form.sector : undefined,
+        advisor_code: form.role === 'business' ? form.advisor_code.trim() || undefined : undefined,
       });
       navigate(user.role === 'advisor' ? '/advisor' : '/assessment', { replace: true });
     } catch (err) {
@@ -150,6 +153,24 @@ export default function Register() {
               </select>
               <span className="mt-1 block text-xs text-muted">
                 We tailor your assessment questions and roadmap to your sector.
+              </span>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-mono uppercase tracking-wide text-muted">
+                Advisor code
+              </span>
+              <input
+                value={form.advisor_code}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, advisor_code: e.target.value.toUpperCase() }))
+                }
+                placeholder="Optional"
+                maxLength={20}
+                className="w-full rounded-xl border border-border bg-ink px-3 py-2.5 text-sm uppercase outline-none focus:border-amber"
+              />
+              <span className="mt-1 block text-xs text-muted">
+                If an advisor gave you a code, enter it here to link your account to them.
               </span>
             </label>
           </>

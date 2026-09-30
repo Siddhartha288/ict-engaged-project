@@ -45,6 +45,18 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const claim = async (email, password) => {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/auth/claim', { email, password });
+      setToken(data.token);
+      setUser(data.user);
+      return data.user;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -58,6 +70,7 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(token && user),
       login,
       register,
+      claim,
       logout,
     }),
     [user, token, loading]

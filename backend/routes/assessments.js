@@ -39,117 +39,107 @@ function buildCategoryBreakdown(questions, responsesByQuestion) {
   }));
 }
 
-async function resolveSectorId(user) {
-  if (user.sector_id) return user.sector_id;
+async function resolveSectorId(sectorIdOrNull) {
+  if (sectorIdOrNull) return sectorIdOrNull;
   const fallback = await query("SELECT id FROM sectors WHERE `key` = 'other' LIMIT 1");
   return fallback.length ? fallback[0].id : null;
 }
 
-router.get('/questions', authenticate, async (req, res, next) => {
-  try {
-    const sectorId = await resolveSectorId(req.user);
-    const rows = await query(
-      `SELECT q.id, q.text, q.sort_order, q.category_id,
-              c.\`key\` AS category_key, c.label AS category_label
-       FROM questions q
-       JOIN categories c ON c.id = q.category_id
-       WHERE q.sector_id = :sector_id
-       ORDER BY c.id ASC, q.sort_order ASC, q.id ASC`,
-      { sector_id: sectorId }
-    );
+async function getGroupedQuestions(sectorId) {
+  const rows = await query(
+    `SELECT q.id, q.text, q.sort_order, q.category_id,
+            c.\`key\` AS category_key, c.label AS category_label
+     FROM questions q
+     JOIN categories c ON c.id = q.category_id
+     WHERE q.sector_id = :sector_id
+     ORDER BY c.id ASC, q.sort_order ASC, q.id ASC`,
+    { sector_id: sectorId }
+  );
 
-    const grouped = [];
-    const indexById = new Map();
+  const grouped = [];
+  const indexById = new Map();
 
-    for (const row of rows) {
-      if (!indexById.has(row.category_id)) {
-        indexById.set(row.category_id, grouped.length);
-        grouped.push({
-          id: row.category_id,
-          key: row.category_key,
-          label: row.category_label,
-          questions: [],
-        });
-      }
-      grouped[indexById.get(row.category_id)].questions.push({
-        id: row.id,
-        text: row.text,
-        sort_order: row.sort_order,
+  for (const row of rows) {
+    if (!indexById.has(row.category_id)) {
+      indexById.set(row.category_id, grouped.length);
+      grouped.push({
+        id: row.category_id,
+        key: row.category_key,
+        label: row.category_label,
+        questions: [],
       });
     }
-
-    return res.json({ categories: grouped });
-  } catch (err) {
-    return next(err);
+    grouped[indexById.get(row.category_id)].questions.push({
+      id: row.id,
+      text: row.text,
+      sort_order: row.sort_order,
+    });
   }
-});
 
-router.post('/assessments', authenticate, async (req, res, next) => {
+  return grouped;
+}
+
+async function submitAssessmentForUser(userId, sectorId, responses) {
+  if (!Array.isArray(responses) || responses.length === 0) {
+    return { error: { status: 400, message: 'responses must be a non-empty array' } };
+  }
+
+  for (const item of responses) {
+    if (
+      !item ||
+      typeof item.question_id !== 'number' ||
+      !Number.isInteger(item.question_id) ||
+      (item.answer !== 0 && item.answer !== 1)
+    ) {
+      return {
+        error: { status: 400, message: 'Each response needs question_id (integer) and answer (0 or 1)' },
+      };
+    }
+  }
+
+  const questions = await query(
+    `SELECT q.id, q.category_id, c.\`key\` AS category_key, c.label AS category_label
+     FROM questions q
+     JOIN categories c ON c.id = q.category_id
+     WHERE q.sector_id = :sector_id`,
+    { sector_id: sectorId }
+  );
+
+  if (questions.length === 0) {
+    return { error: { status: 500, message: 'No questions configured' } };
+  }
+
+  const questionIds = new Set(questions.map((q) => q.id));
+  const seen = new Set();
+  for (const item of responses) {
+    if (!questionIds.has(item.question_id)) {
+      return { error: { status: 400, message: `Unknown question_id: ${item.question_id}` } };
+    }
+    if (seen.has(item.question_id)) {
+      return { error: { status: 400, message: `Duplicate question_id: ${item.question_id}` } };
+    }
+    seen.add(item.question_id);
+  }
+
+  if (seen.size !== questions.length) {
+    return { error: { status: 400, message: `All ${questions.length} questions must be answered` } };
+  }
+
+  const responsesByQuestion = new Map(responses.map((r) => [r.question_id, r.answer]));
+  const categories = buildCategoryBreakdown(questions, responsesByQuestion);
+  const totalScore = Math.round(
+    categories.reduce((sum, c) => sum + c.score, 0) / categories.length
+  );
+  const level = scoreToLevel(totalScore);
+
   const connection = await pool.getConnection();
   try {
-    const responses = req.body?.responses;
-
-    if (!Array.isArray(responses) || responses.length === 0) {
-      return res.status(400).json({ message: 'responses must be a non-empty array' });
-    }
-
-    for (const item of responses) {
-      if (
-        !item ||
-        typeof item.question_id !== 'number' ||
-        !Number.isInteger(item.question_id) ||
-        (item.answer !== 0 && item.answer !== 1)
-      ) {
-        return res.status(400).json({
-          message: 'Each response needs question_id (integer) and answer (0 or 1)',
-        });
-      }
-    }
-
-    const sectorId = await resolveSectorId(req.user);
-    const questions = await query(
-      `SELECT q.id, q.category_id, c.\`key\` AS category_key, c.label AS category_label
-       FROM questions q
-       JOIN categories c ON c.id = q.category_id
-       WHERE q.sector_id = :sector_id`,
-      { sector_id: sectorId }
-    );
-
-    if (questions.length === 0) {
-      return res.status(500).json({ message: 'No questions configured' });
-    }
-
-    const questionIds = new Set(questions.map((q) => q.id));
-    const seen = new Set();
-    for (const item of responses) {
-      if (!questionIds.has(item.question_id)) {
-        return res.status(400).json({ message: `Unknown question_id: ${item.question_id}` });
-      }
-      if (seen.has(item.question_id)) {
-        return res.status(400).json({ message: `Duplicate question_id: ${item.question_id}` });
-      }
-      seen.add(item.question_id);
-    }
-
-    if (seen.size !== questions.length) {
-      return res.status(400).json({
-        message: `All ${questions.length} questions must be answered`,
-      });
-    }
-
-    const responsesByQuestion = new Map(responses.map((r) => [r.question_id, r.answer]));
-    const categories = buildCategoryBreakdown(questions, responsesByQuestion);
-    const totalScore = Math.round(
-      categories.reduce((sum, c) => sum + c.score, 0) / categories.length
-    );
-    const level = scoreToLevel(totalScore);
-
     await connection.beginTransaction();
 
     const [assessmentResult] = await connection.execute(
       `INSERT INTO assessments (user_id, sector_id, total_score, level)
        VALUES (?, ?, ?, ?)`,
-      [req.user.id, sectorId, totalScore, level]
+      [userId, sectorId, totalScore, level]
     );
     const assessmentId = assessmentResult.insertId;
 
@@ -163,18 +153,45 @@ router.post('/assessments', authenticate, async (req, res, next) => {
 
     await connection.commit();
 
-    return res.status(201).json({
-      id: assessmentId,
-      total_score: totalScore,
-      level,
-      categories,
-      created_at: new Date().toISOString(),
-    });
+    return {
+      result: {
+        id: assessmentId,
+        total_score: totalScore,
+        level,
+        categories,
+        created_at: new Date().toISOString(),
+      },
+    };
   } catch (err) {
     await connection.rollback();
-    return next(err);
+    throw err;
   } finally {
     connection.release();
+  }
+}
+
+router.get('/questions', authenticate, async (req, res, next) => {
+  try {
+    const sectorId = await resolveSectorId(req.user.sector_id);
+    const grouped = await getGroupedQuestions(sectorId);
+    return res.json({ categories: grouped });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/assessments', authenticate, async (req, res, next) => {
+  try {
+    const sectorId = await resolveSectorId(req.user.sector_id);
+    const { result, error } = await submitAssessmentForUser(
+      req.user.id,
+      sectorId,
+      req.body?.responses
+    );
+    if (error) return res.status(error.status).json({ message: error.message });
+    return res.status(201).json(result);
+  } catch (err) {
+    return next(err);
   }
 });
 
@@ -356,3 +373,6 @@ router.get('/assessments/:id/benchmark', authenticate, async (req, res, next) =>
 });
 
 module.exports = router;
+module.exports.resolveSectorId = resolveSectorId;
+module.exports.getGroupedQuestions = getGroupedQuestions;
+module.exports.submitAssessmentForUser = submitAssessmentForUser;

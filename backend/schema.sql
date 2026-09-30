@@ -30,16 +30,24 @@ CREATE TABLE users (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   email VARCHAR(255) NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255) NULL,
   role ENUM('business', 'advisor') NOT NULL DEFAULT 'business',
   business_name VARCHAR(255) NULL,
   sector_id INT UNSIGNED NULL,
   follow_up_status ENUM('needs_follow_up', 'on_track', 'resolved') NULL,
+  advisor_code VARCHAR(20) NULL,
+  advisor_id INT UNSIGNED NULL,
+  claimed_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
+  UNIQUE KEY uq_users_advisor_code (advisor_code),
   KEY idx_users_role (role),
+  KEY idx_users_advisor (advisor_id),
   CONSTRAINT fk_users_sector
     FOREIGN KEY (sector_id) REFERENCES sectors(id)
+    ON DELETE SET NULL,
+  CONSTRAINT fk_users_advisor
+    FOREIGN KEY (advisor_id) REFERENCES users(id)
     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

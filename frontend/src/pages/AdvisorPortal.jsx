@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowDownUp, Download, Search, AlertTriangle } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  ArrowDownUp,
+  Download,
+  Search,
+  AlertTriangle,
+  Copy,
+  Check,
+  UserPlus,
+  Users,
+  Globe,
+} from 'lucide-react';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'No status' },
@@ -30,27 +41,54 @@ function toCsvValue(value) {
 }
 
 export default function AdvisorPortal() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [businesses, setBusinesses] = useState([]);
+  const [scope, setScope] = useState('mine');
   const [sortAsc, setSortAsc] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState('');
   const [scoreFilter, setScoreFilter] = useState('all');
   const [attentionOnly, setAttentionOnly] = useState(false);
 
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [sectors, setSectors] = useState([]);
+  const [clientForm, setClientForm] = useState({ name: '', email: '', business_name: '', sector: '' });
+  const [addingClient, setAddingClient] = useState(false);
+
+  const loadBusinesses = async (nextScope) => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await api.get('/admin/businesses', {
+        params: nextScope === 'all' ? { all: 1 } : {},
+      });
+      setBusinesses(data.businesses || []);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load businesses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBusinesses(scope);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await api.get('/admin/businesses');
-        if (!cancelled) setBusinesses(data.businesses || []);
-      } catch (err) {
-        if (!cancelled) setError(err.response?.data?.message || 'Failed to load businesses');
-      } finally {
-        if (!cancelled) setLoading(false);
+        const { data } = await api.get('/sectors');
+        if (!cancelled) setSectors(data.sectors || []);
+      } catch {
+        // Optional for the add-client form.
       }
     })();
     return () => {
@@ -137,7 +175,37 @@ export default function AdvisorPortal() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) {
+  const inviteLink = user?.advisor_code
+    ? `${window.location.origin}/register?code=${user.advisor_code}`
+    : '';
+
+  const copyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    } catch {
+      // Clipboard API may be unavailable; the code is still visible to copy manually.
+    }
+  };
+
+  const submitAddClient = async (e) => {
+    e.preventDefault();
+    setAddingClient(true);
+    setError('');
+    try {
+      const { data } = await api.post('/admin/businesses', clientForm);
+      setShowAddClient(false);
+      setClientForm({ name: '', email: '', business_name: '', sector: '' });
+      navigate(`/advisor/businesses/${data.id}/assessment`);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to add client');
+    } finally {
+      setAddingClient(false);
+    }
+  };
+
+  if (loading && businesses.length === 0) {
     return <div className="px-4 py-20 text-center font-mono text-sm text-muted">Loading businesses…</div>;
   }
 
@@ -149,6 +217,13 @@ export default function AdvisorPortal() {
           <h1 className="font-display text-3xl font-bold">Business overview</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAddClient((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-xl bg-amber px-3 py-2 text-sm font-semibold text-ink transition hover:bg-amber/90"
+          >
+            <UserPlus size={14} /> Add client
+          </button>
           <button
             type="button"
             onClick={exportCsv}
@@ -167,7 +242,120 @@ export default function AdvisorPortal() {
         </div>
       </div>
 
+      {user?.advisor_code && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-4">
+          <div className="flex-1">
+            <p className="font-mono text-xs uppercase tracking-wide text-muted">Your invite code</p>
+            <p className="font-mono text-lg text-amber">{user.advisor_code}</p>
+          </div>
+          <div className="min-w-0 flex-[2]">
+            <p className="font-mono text-xs uppercase tracking-wide text-muted">Share this link with clients</p>
+            <p className="truncate text-sm text-teal">{inviteLink}</p>
+          </div>
+          <button
+            type="button"
+            onClick={copyInvite}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted transition hover:border-teal/40 hover:text-text"
+          >
+            {codeCopied ? <Check size={12} /> : <Copy size={12} />}
+            {codeCopied ? 'Copied' : 'Copy link'}
+          </button>
+        </div>
+      )}
+
+      {showAddClient && (
+        <form
+          onSubmit={submitAddClient}
+          className="mb-6 grid gap-3 rounded-xl border border-amber/40 bg-surface p-4 sm:grid-cols-2"
+        >
+          <label className="block">
+            <span className="mb-1 block text-xs font-mono uppercase tracking-wide text-muted">Owner name</span>
+            <input
+              required
+              value={clientForm.name}
+              onChange={(e) => setClientForm((f) => ({ ...f, name: e.target.value }))}
+              className="w-full rounded-lg border border-border bg-ink px-3 py-2 text-sm outline-none focus:border-amber"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-mono uppercase tracking-wide text-muted">Email</span>
+            <input
+              type="email"
+              required
+              value={clientForm.email}
+              onChange={(e) => setClientForm((f) => ({ ...f, email: e.target.value }))}
+              className="w-full rounded-lg border border-border bg-ink px-3 py-2 text-sm outline-none focus:border-amber"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-mono uppercase tracking-wide text-muted">
+              Business name
+            </span>
+            <input
+              value={clientForm.business_name}
+              onChange={(e) => setClientForm((f) => ({ ...f, business_name: e.target.value }))}
+              placeholder="Optional"
+              className="w-full rounded-lg border border-border bg-ink px-3 py-2 text-sm outline-none focus:border-amber"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-mono uppercase tracking-wide text-muted">Sector</span>
+            <select
+              required
+              value={clientForm.sector}
+              onChange={(e) => setClientForm((f) => ({ ...f, sector: e.target.value }))}
+              className="w-full rounded-lg border border-border bg-ink px-3 py-2 text-sm outline-none focus:border-amber"
+            >
+              <option value="" disabled>
+                Select sector…
+              </option>
+              {sectors.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="sm:col-span-2 flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={addingClient}
+              className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-ink transition hover:bg-amber/90 disabled:opacity-60"
+            >
+              {addingClient ? 'Adding…' : 'Add client & run assessment'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddClient(false)}
+              className="rounded-xl border border-border px-4 py-2 text-sm text-muted transition hover:text-text"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
       <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="flex rounded-xl border border-border p-1">
+          <button
+            type="button"
+            onClick={() => setScope('mine')}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition ${
+              scope === 'mine' ? 'bg-amber text-ink' : 'text-muted hover:text-text'
+            }`}
+          >
+            <Users size={14} /> My clients
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope('all')}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition ${
+              scope === 'all' ? 'bg-amber text-ink' : 'text-muted hover:text-text'
+            }`}
+          >
+            <Globe size={14} /> All businesses
+          </button>
+        </div>
         <div className="relative">
           <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
@@ -241,7 +429,9 @@ export default function AdvisorPortal() {
               {sorted.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-muted">
-                    No businesses match these filters.
+                    {scope === 'mine'
+                      ? "No clients yet — share your invite link or click \"Add client\"."
+                      : 'No businesses match these filters.'}
                   </td>
                 </tr>
               )}
@@ -253,6 +443,11 @@ export default function AdvisorPortal() {
                     </Link>
                     {needsAttention(b) && (
                       <AlertTriangle size={12} className="ml-1.5 inline-block text-amber" />
+                    )}
+                    {!b.claimed && (
+                      <span className="ml-1.5 rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted">
+                        unclaimed
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-muted">{b.sector_label || '—'}</td>
