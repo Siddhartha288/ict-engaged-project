@@ -1,8 +1,39 @@
-import { Clock3, ArrowUpRight, ExternalLink, Check } from 'lucide-react';
+import { useState } from 'react';
+import { Clock3, ArrowUpRight, ExternalLink, Check, DollarSign } from 'lucide-react';
 import { VendorLink } from './VendorFinder';
 
-export default function RoadmapCard({ action, onToggleComplete }) {
+function formatAud(value) {
+  if (value == null) return null;
+  return `$${Number(value).toLocaleString()}`;
+}
+
+function FinancialField({ label, value, onCommit }) {
+  const [draft, setDraft] = useState(value ?? '');
+
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] uppercase tracking-wide text-muted">{label}</span>
+      <input
+        type="number"
+        min="0"
+        step="1"
+        value={draft}
+        placeholder="0"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          const num = draft === '' ? null : Number(draft);
+          if (num === (value ?? null)) return;
+          onCommit(num);
+        }}
+        className="w-full rounded-lg border border-border bg-ink px-2 py-1.5 text-sm outline-none focus:border-teal"
+      />
+    </label>
+  );
+}
+
+export default function RoadmapCard({ action, onToggleComplete, onUpdateFinancials }) {
   const completed = Boolean(action.completed);
+  const hasFinancials = action.cost != null || action.expected_benefit != null;
 
   return (
     <article
@@ -57,6 +88,31 @@ export default function RoadmapCard({ action, onToggleComplete }) {
             </a>
           ))}
         </div>
+      )}
+
+      {onUpdateFinancials ? (
+        <div className="mb-4 grid grid-cols-2 gap-3 rounded-lg border border-border/60 bg-ink/30 p-3">
+          <FinancialField
+            label="Estimated cost (AUD)"
+            value={action.cost}
+            onCommit={(num) => onUpdateFinancials({ cost: num })}
+          />
+          <FinancialField
+            label="Expected benefit (AUD)"
+            value={action.expected_benefit}
+            onCommit={(num) => onUpdateFinancials({ expected_benefit: num })}
+          />
+        </div>
+      ) : (
+        hasFinancials && (
+          <div className="mb-4 flex items-center gap-4 rounded-lg border border-border/60 bg-ink/30 px-3 py-2 text-xs font-mono text-muted">
+            <DollarSign size={12} className="text-teal" />
+            {action.cost != null && <span>Cost: {formatAud(action.cost)}</span>}
+            {action.expected_benefit != null && (
+              <span>Expected benefit: {formatAud(action.expected_benefit)}</span>
+            )}
+          </div>
+        )
       )}
 
       <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-muted">

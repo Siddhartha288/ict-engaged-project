@@ -218,9 +218,35 @@ router.patch('/:id/roadmap/actions/:index', authenticate, async (req, res, next)
       return res.status(400).json({ message: 'Action index out of range' });
     }
 
+    const body = req.body || {};
+    const updates = {};
+
+    if (Object.prototype.hasOwnProperty.call(body, 'completed')) {
+      updates.completed = Boolean(body.completed);
+    }
+
+    for (const field of ['cost', 'expected_benefit']) {
+      if (!Object.prototype.hasOwnProperty.call(body, field)) continue;
+      if (body[field] === null || body[field] === '') {
+        updates[field] = null;
+        continue;
+      }
+      const value = Number(body[field]);
+      if (!Number.isFinite(value) || value < 0 || value > 10000000) {
+        return res.status(400).json({
+          message: `${field === 'cost' ? 'Cost' : 'Expected benefit'} must be a number between 0 and 10,000,000`,
+        });
+      }
+      updates[field] = value;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update' });
+    }
+
     content.actions[actionIndex] = {
       ...content.actions[actionIndex],
-      completed: Boolean(req.body?.completed),
+      ...updates,
     };
 
     await query(`UPDATE roadmaps SET content = :content WHERE id = :id`, {

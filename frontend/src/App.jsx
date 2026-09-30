@@ -9,6 +9,7 @@ import Assessment from './pages/Assessment';
 import Dashboard from './pages/Dashboard';
 import AdvisorPortal from './pages/AdvisorPortal';
 import BusinessDetail from './pages/BusinessDetail';
+import ProblemsAndSolutions from './pages/ProblemsAndSolutions';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <main>
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/problems-solutions" element={<ProblemsAndSolutions />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route

@@ -287,6 +287,38 @@ export default function BusinessDetail() {
                   {roadmap ? (
                     <div className="space-y-4">
                       <p className="text-sm leading-relaxed text-muted">{roadmap.intro}</p>
+                      {(() => {
+                        const totalCost = roadmap.actions.reduce((s, a) => s + (Number(a.cost) || 0), 0);
+                        const totalBenefit = roadmap.actions.reduce(
+                          (s, a) => s + (Number(a.expected_benefit) || 0),
+                          0
+                        );
+                        if (totalCost === 0 && totalBenefit === 0) return null;
+                        const roiPct =
+                          totalCost > 0 ? Math.round(((totalBenefit - totalCost) / totalCost) * 100) : null;
+                        return (
+                          <div className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-ink/40 p-3 text-center">
+                            <div>
+                              <p className="font-mono text-sm text-text">${totalCost.toLocaleString()}</p>
+                              <p className="text-[10px] uppercase tracking-wide text-muted">Planned investment</p>
+                            </div>
+                            <div>
+                              <p className="font-mono text-sm text-teal">${totalBenefit.toLocaleString()}</p>
+                              <p className="text-[10px] uppercase tracking-wide text-muted">Expected benefit</p>
+                            </div>
+                            <div>
+                              <p
+                                className={`font-mono text-sm ${
+                                  roiPct == null ? 'text-muted' : roiPct >= 0 ? 'text-teal' : 'text-red-300'
+                                }`}
+                              >
+                                {roiPct == null ? '—' : `${roiPct}%`}
+                              </p>
+                              <p className="text-[10px] uppercase tracking-wide text-muted">Projected ROI</p>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div className="space-y-3">
                         {(roadmap.actions || []).map((action, i) => (
                           <RoadmapCard key={`${action.title}-${i}`} action={action} />

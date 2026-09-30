@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LogOut, ClipboardList, Users, Sparkles } from 'lucide-react';
+import { LayoutDashboard, LogOut, ClipboardList, Users, Sparkles, Lightbulb } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
@@ -27,6 +27,11 @@ export default function Navbar() {
         </Link>
 
         <nav className="flex items-center gap-5">
+          <NavLink to="/problems-solutions" className={linkClass}>
+            <span className="inline-flex items-center gap-1.5">
+              <Lightbulb size={14} /> Problems &amp; Solutions
+            </span>
+          </NavLink>
           {isAuthenticated ? (
             <>
               <NavLink to="/dashboard" className={linkClass}>
