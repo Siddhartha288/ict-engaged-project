@@ -34,6 +34,7 @@ CREATE TABLE users (
   role ENUM('business', 'advisor') NOT NULL DEFAULT 'business',
   business_name VARCHAR(255) NULL,
   sector_id INT UNSIGNED NULL,
+  follow_up_status ENUM('needs_follow_up', 'on_track', 'resolved') NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
   KEY idx_users_role (role),

@@ -8,6 +8,7 @@ import Register from './pages/Register';
 import Assessment from './pages/Assessment';
 import Dashboard from './pages/Dashboard';
 import AdvisorPortal from './pages/AdvisorPortal';
+import BusinessDetail from './pages/BusinessDetail';
 
 export default function App() {
   return (
@@ -41,6 +42,14 @@ export default function App() {
                 element={
                   <ProtectedRoute roles={['advisor']}>
                     <AdvisorPortal />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/advisor/businesses/:id"
+                element={
+                  <ProtectedRoute roles={['advisor']}>
+                    <BusinessDetail />
                   </ProtectedRoute>
                 }
               />
