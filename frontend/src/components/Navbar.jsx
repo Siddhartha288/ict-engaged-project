@@ -1,6 +1,7 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, LogOut, ClipboardList, Users, Sparkles, Lightbulb } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from './ThemeToggle';
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -72,6 +73,7 @@ export default function Navbar() {
               </Link>
             </>
           )}
+          <ThemeToggle />
         </nav>
       </div>
     </header>
