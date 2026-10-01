@@ -1,5 +1,5 @@
 const express = require('express');
-const { query } = require('../db');
+const { query, pool } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const assessments = require('./assessments');
 
@@ -274,6 +274,88 @@ router.patch(
       }
 
       return res.json({ id: businessId, follow_up_status: status });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+router.get(
+  '/impact',
+  authenticate,
+  requireRole('advisor'),
+  async (req, res, next) => {
+    try {
+      const showAll = req.query.all === '1' || req.query.all === 'true';
+
+      const businessRows = await query(
+        `SELECT id, follow_up_status FROM users
+         WHERE role = 'business' ${showAll ? '' : 'AND advisor_id = :advisor_id'}`,
+        showAll ? {} : { advisor_id: req.user.id }
+      );
+
+      const statusBreakdown = { needs_follow_up: 0, on_track: 0, resolved: 0, none: 0 };
+      for (const b of businessRows) {
+        statusBreakdown[b.follow_up_status || 'none'] += 1;
+      }
+
+      if (businessRows.length === 0) {
+        return res.json({
+          scope: showAll ? 'all' : 'mine',
+          caseload_size: 0,
+          assessed_count: 0,
+          average_current_score: null,
+          average_improvement: null,
+          improved_business_count: null,
+          status_breakdown: statusBreakdown,
+        });
+      }
+
+      const businessIds = businessRows.map((b) => b.id);
+      const placeholders = businessIds.map(() => '?').join(',');
+      const [assessmentRows] = await pool.execute(
+        `SELECT user_id, id, total_score, created_at FROM assessments
+         WHERE user_id IN (${placeholders})
+         ORDER BY user_id ASC, created_at ASC, id ASC`,
+        businessIds
+      );
+
+      const byUser = new Map();
+      for (const row of assessmentRows) {
+        if (!byUser.has(row.user_id)) byUser.set(row.user_id, []);
+        byUser.get(row.user_id).push(row);
+      }
+
+      let currentScoreSum = 0;
+      let currentScoreCount = 0;
+      let improvementSum = 0;
+      let improvementCount = 0;
+
+      for (const list of byUser.values()) {
+        const latest = list[list.length - 1];
+        currentScoreSum += Number(latest.total_score);
+        currentScoreCount += 1;
+
+        if (list.length >= 2) {
+          const first = list[0];
+          improvementSum += Number(latest.total_score) - Number(first.total_score);
+          improvementCount += 1;
+        }
+      }
+
+      return res.json({
+        scope: showAll ? 'all' : 'mine',
+        caseload_size: businessRows.length,
+        assessed_count: currentScoreCount,
+        average_current_score: currentScoreCount
+          ? Math.round(currentScoreSum / currentScoreCount)
+          : null,
+        average_improvement: improvementCount
+          ? Math.round(improvementSum / improvementCount)
+          : null,
+        improved_business_count: improvementCount,
+        status_breakdown: statusBreakdown,
+      });
     } catch (err) {
       return next(err);
     }

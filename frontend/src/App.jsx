@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard';
 import AdvisorPortal from './pages/AdvisorPortal';
 import BusinessDetail from './pages/BusinessDetail';
 import AdvisorRunAssessment from './pages/AdvisorRunAssessment';
+import BusinessReport from './pages/BusinessReport';
 import ProblemsAndSolutions from './pages/ProblemsAndSolutions';
 
 export default function App() {
@@ -65,6 +66,14 @@ export default function App() {
                   element={
                     <ProtectedRoute roles={['advisor']}>
                       <AdvisorRunAssessment />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/advisor/businesses/:id/report"
+                  element={
+                    <ProtectedRoute roles={['advisor']}>
+                      <BusinessReport />
                     </ProtectedRoute>
                   }
                 />

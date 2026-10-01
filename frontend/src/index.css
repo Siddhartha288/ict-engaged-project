@@ -62,3 +62,14 @@
     letter-spacing: -0.02em;
   }
 }
+
+@media print {
+  header,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+}

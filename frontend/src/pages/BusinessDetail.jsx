@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { ArrowLeft, ClipboardList, MessageSquare, Send, TrendingUp } from 'lucide-react';
+import { ArrowLeft, ClipboardList, FileText, MessageSquare, Send, TrendingUp } from 'lucide-react';
 import api from '../api/client';
 import RadarScoreChart from '../components/RadarScoreChart';
 import RoadmapCard from '../components/RoadmapCard';
@@ -178,6 +178,14 @@ export default function BusinessDetail() {
           </p>
         </div>
         <div className="flex items-end gap-3">
+          <Link
+            to={`/advisor/businesses/${business.id}/report`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm text-muted transition hover:border-teal/40 hover:text-text"
+          >
+            <FileText size={14} /> View report
+          </Link>
           <Link
             to={`/advisor/businesses/${business.id}/assessment`}
             className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm text-muted transition hover:border-teal/40 hover:text-text"

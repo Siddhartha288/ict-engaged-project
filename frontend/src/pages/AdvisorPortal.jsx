@@ -10,6 +10,7 @@ import {
   UserPlus,
   Users,
   Globe,
+  TrendingUp,
 } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -44,6 +45,7 @@ export default function AdvisorPortal() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState([]);
+  const [impact, setImpact] = useState(null);
   const [scope, setScope] = useState('mine');
   const [sortAsc, setSortAsc] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -76,8 +78,20 @@ export default function AdvisorPortal() {
     }
   };
 
+  const loadImpact = async (nextScope) => {
+    try {
+      const { data } = await api.get('/admin/impact', {
+        params: nextScope === 'all' ? { all: 1 } : {},
+      });
+      setImpact(data);
+    } catch {
+      setImpact(null);
+    }
+  };
+
   useEffect(() => {
     loadBusinesses(scope);
+    loadImpact(scope);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope]);
 
@@ -145,6 +159,7 @@ export default function AdvisorPortal() {
       setBusinesses((prev) =>
         prev.map((b) => (b.id === businessId ? { ...b, follow_up_status: status || null } : b))
       );
+      loadImpact(scope);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update status');
     } finally {
@@ -260,6 +275,53 @@ export default function AdvisorPortal() {
             {codeCopied ? <Check size={12} /> : <Copy size={12} />}
             {codeCopied ? 'Copied' : 'Copy link'}
           </button>
+        </div>
+      )}
+
+      {impact && impact.caseload_size > 0 && (
+        <div className="mb-6 rounded-xl border border-border bg-surface p-4">
+          <h2 className="mb-3 flex items-center gap-1.5 font-display text-sm font-semibold text-text">
+            <TrendingUp size={14} className="text-teal" /> Your impact{' '}
+            <span className="font-normal text-muted">({scope === 'mine' ? 'my clients' : 'all businesses'})</span>
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="rounded-lg bg-ink/50 px-3 py-2 text-center">
+              <p className="font-mono text-lg text-text">{impact.caseload_size}</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted">Caseload</p>
+            </div>
+            <div className="rounded-lg bg-ink/50 px-3 py-2 text-center">
+              <p className="font-mono text-lg text-amber">
+                {impact.average_current_score != null ? `${impact.average_current_score}%` : '—'}
+              </p>
+              <p className="text-[10px] uppercase tracking-wide text-muted">Avg score</p>
+            </div>
+            <div className="rounded-lg bg-ink/50 px-3 py-2 text-center">
+              <p
+                className={`font-mono text-lg ${
+                  impact.average_improvement == null
+                    ? 'text-muted'
+                    : impact.average_improvement >= 0
+                      ? 'text-teal'
+                      : 'text-red-300'
+                }`}
+              >
+                {impact.average_improvement != null
+                  ? `${impact.average_improvement > 0 ? '+' : ''}${impact.average_improvement}%`
+                  : '—'}
+              </p>
+              <p className="text-[10px] uppercase tracking-wide text-muted">
+                Avg improvement{impact.improved_business_count ? ` (${impact.improved_business_count})` : ''}
+              </p>
+            </div>
+            <div className="rounded-lg bg-ink/50 px-3 py-2 text-center">
+              <p className="font-mono text-lg text-teal">{impact.status_breakdown.on_track}</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted">On track</p>
+            </div>
+            <div className="rounded-lg bg-ink/50 px-3 py-2 text-center">
+              <p className="font-mono text-lg text-red-300">{impact.status_breakdown.needs_follow_up}</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted">Needs follow-up</p>
+            </div>
+          </div>
         </div>
       )}
 
