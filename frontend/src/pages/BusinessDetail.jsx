@@ -13,6 +13,7 @@ import { ArrowLeft, ClipboardList, FileText, MessageSquare, Send, TrendingUp } f
 import api from '../api/client';
 import RadarScoreChart from '../components/RadarScoreChart';
 import RoadmapCard from '../components/RoadmapCard';
+import WebsiteAuditCard from '../components/WebsiteAuditCard';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'No status' },
@@ -394,6 +395,10 @@ export default function BusinessDetail() {
             <Send size={12} /> Send
           </button>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <WebsiteAuditCard audit={business.website_audit} />
       </div>
     </div>
   );

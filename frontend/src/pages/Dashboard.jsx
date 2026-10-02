@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import RadarScoreChart from '../components/RadarScoreChart';
 import RoadmapCard from '../components/RoadmapCard';
 import VendorFinder from '../components/VendorFinder';
+import WebsiteAuditCard from '../components/WebsiteAuditCard';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -25,6 +26,8 @@ export default function Dashboard() {
   const [roadmap, setRoadmap] = useState(null);
   const [benchmark, setBenchmark] = useState(null);
   const [notes, setNotes] = useState([]);
+  const [audit, setAudit] = useState(null);
+  const [auditRunning, setAuditRunning] = useState(false);
   const [loading, setLoading] = useState(true);
   const [roadmapLoading, setRoadmapLoading] = useState(false);
   const [error, setError] = useState('');
@@ -73,11 +76,27 @@ export default function Dashboard() {
       } catch {
         if (!cancelled) setNotes([]);
       }
+      try {
+        const { data } = await api.get('/audit');
+        if (!cancelled) setAudit(data.audit || null);
+      } catch {
+        if (!cancelled) setAudit(null);
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [user]);
+
+  const runAudit = async (url) => {
+    setAuditRunning(true);
+    try {
+      const { data } = await api.post('/audit', { url });
+      setAudit(data);
+    } finally {
+      setAuditRunning(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -169,6 +188,9 @@ export default function Dashboard() {
         >
           Start assessment
         </Link>
+        <div className="mt-10 text-left">
+          <WebsiteAuditCard audit={audit} onRun={runAudit} running={auditRunning} />
+        </div>
       </div>
     );
   }
@@ -400,6 +422,8 @@ export default function Dashboard() {
                 </p>
               )}
             </div>
+
+            <WebsiteAuditCard audit={audit} onRun={runAudit} running={auditRunning} />
 
             <VendorFinder />
 

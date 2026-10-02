@@ -8,6 +8,7 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS website_audits;
 DROP TABLE IF EXISTS advisor_notes;
 DROP TABLE IF EXISTS roadmaps;
 DROP TABLE IF EXISTS responses;
@@ -130,6 +131,26 @@ CREATE TABLE advisor_notes (
     ON DELETE CASCADE,
   CONSTRAINT fk_notes_advisor
     FOREIGN KEY (advisor_user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE website_audits (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  url VARCHAR(500) NOT NULL,
+  status ENUM('ok', 'unreachable') NOT NULL,
+  error_message VARCHAR(255) NULL,
+  https TINYINT(1) NULL,
+  mobile_friendly TINYINT(1) NULL,
+  has_title TINYINT(1) NULL,
+  has_meta_description TINYINT(1) NULL,
+  payment_detected TINYINT(1) NULL,
+  social_links_found VARCHAR(255) NULL,
+  response_time_ms INT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_audits_user_created (user_id, created_at),
+  CONSTRAINT fk_audits_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

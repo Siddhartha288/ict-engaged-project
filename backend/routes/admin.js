@@ -2,6 +2,7 @@ const express = require('express');
 const { query, pool } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const assessments = require('./assessments');
+const audit = require('./audit');
 
 const router = express.Router();
 
@@ -162,6 +163,8 @@ router.get(
         { id: businessId }
       );
 
+      const latestAudit = await audit.latestAuditFor(businessId);
+
       return res.json({
         id: business.id,
         name: business.name,
@@ -179,6 +182,7 @@ router.get(
           score: Number(a.total_score),
           level: a.level,
         })),
+        website_audit: latestAudit ? audit.serializeAudit(latestAudit) : null,
       });
     } catch (err) {
       return next(err);
