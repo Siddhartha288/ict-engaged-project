@@ -11,7 +11,7 @@ const dns = require('dns').promises;
 const net = require('net');
 
 const FETCH_TIMEOUT_MS = 8000;
-const MAX_REDIRECTS = 3;
+const MAX_REDIRECTS = 6;
 const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2MB
 
 function isPrivateIPv4(ip) {
@@ -86,33 +86,69 @@ function normalizeUrl(rawUrl) {
   return parsed;
 }
 
-async function safeFetch(url, redirectsLeft) {
+// A same-process cookie jar for the duration of one audit's redirect chain —
+// some sites redirect through a session-init hop that sets a cookie the next
+// hop expects. Not persisted anywhere; discarded once the audit finishes.
+function buildCookieJar() {
+  const byName = new Map();
+  return {
+    header() {
+      if (!byName.size) return null;
+      return [...byName.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+    },
+    absorb(setCookieValues) {
+      for (const raw of setCookieValues) {
+        const firstPair = raw.split(';')[0];
+        const eq = firstPair.indexOf('=');
+        if (eq <= 0) continue;
+        byName.set(firstPair.slice(0, eq).trim(), firstPair.slice(eq + 1).trim());
+      }
+    },
+  };
+}
+
+async function safeFetch(url, redirectsLeft, jar, visited) {
   await assertPublicHost(url.hostname);
+
+  const key = url.toString();
+  if (visited.has(key)) {
+    throw new Error(
+      'That site redirected back to a page it already sent us to. It may be behind a waiting-room or bot-protection service that blocks automated checks.'
+    );
+  }
+  visited.add(key);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   let res;
   try {
-    res = await fetch(url, {
-      redirect: 'manual',
-      signal: controller.signal,
-      headers: { 'User-Agent': 'BizTransform-WebsiteAudit/1.0' },
-    });
+    const headers = { 'User-Agent': 'BizTransform-WebsiteAudit/1.0' };
+    const cookieHeader = jar.header();
+    if (cookieHeader) headers.Cookie = cookieHeader;
+
+    res = await fetch(url, { redirect: 'manual', signal: controller.signal, headers });
   } finally {
     clearTimeout(timer);
   }
 
+  const setCookie =
+    typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+  if (setCookie.length) jar.absorb(setCookie);
+
   if ([301, 302, 303, 307, 308].includes(res.status)) {
     const location = res.headers.get('location');
-    if (!location || redirectsLeft <= 0) {
+    if (!location) {
+      throw new Error('Site sent a redirect with no destination.');
+    }
+    if (redirectsLeft <= 0) {
       throw new Error('Too many redirects while fetching that site.');
     }
     const nextUrl = new URL(location, url);
     if (nextUrl.protocol !== 'http:' && nextUrl.protocol !== 'https:') {
       throw new Error('Redirected to an unsupported URL.');
     }
-    return safeFetch(nextUrl, redirectsLeft - 1);
+    return safeFetch(nextUrl, redirectsLeft - 1, jar, visited);
   }
 
   return { res, finalUrl: url };
@@ -180,7 +216,7 @@ async function runWebsiteAudit(url) {
   const startedAt = Date.now();
 
   try {
-    const { res, finalUrl } = await safeFetch(url, MAX_REDIRECTS);
+    const { res, finalUrl } = await safeFetch(url, MAX_REDIRECTS, buildCookieJar(), new Set());
     const responseTimeMs = Date.now() - startedAt;
 
     if (!res.ok) {
