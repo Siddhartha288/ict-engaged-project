@@ -12,6 +12,7 @@ const adminRoutes = require('./routes/admin');
 const sectorRoutes = require('./routes/sectors');
 const notesRoutes = require('./routes/notes');
 const auditRoutes = require('./routes/audit');
+const platformRoutes = require('./routes/platform');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
@@ -40,6 +41,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/sectors', sectorRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/platform', platformRoutes);
 
 const staticDir = path.join(__dirname, 'public');
 if (fs.existsSync(staticDir)) {

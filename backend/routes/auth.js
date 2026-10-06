@@ -42,7 +42,7 @@ function publicUser(row) {
 const USER_SELECT = `
   SELECT u.id, u.name, u.email, u.password_hash, u.role, u.business_name, u.created_at,
          u.sector_id, s.\`key\` AS sector_key, s.label AS sector_label,
-         u.advisor_code, u.advisor_id
+         u.advisor_code, u.advisor_id, u.is_active
   FROM users u
   LEFT JOIN sectors s ON s.id = u.sector_id
 `;
@@ -173,6 +173,11 @@ router.post('/login', async (req, res, next) => {
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
       return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    // Checked after the password so the status isn't revealed to someone who
+    // doesn't know the credentials.
+    if (!user.is_active) {
+      return res.status(403).json({ message: 'This account has been deactivated. Contact an administrator.' });
     }
 
     const token = signToken(user);

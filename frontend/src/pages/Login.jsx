@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const HOME_BY_ROLE = { admin: '/admin', advisor: '/advisor', business: '/dashboard' };
+
 export default function Login() {
   const { login, loading } = useAuth();
   const navigate = useNavigate();
@@ -17,7 +19,7 @@ export default function Login() {
       const user = await login(email, password);
       const from = location.state?.from;
       if (from) navigate(from, { replace: true });
-      else navigate(user.role === 'advisor' ? '/advisor' : '/dashboard', { replace: true });
+      else navigate(HOME_BY_ROLE[user.role] || '/dashboard', { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
     }

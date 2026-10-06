@@ -1,0 +1,172 @@
+const express = require('express');
+const { query } = require('../db');
+const { authenticate, requireRole } = require('../middleware/auth');
+
+const router = express.Router();
+router.use(authenticate, requireRole('admin'));
+
+router.get('/stats', async (req, res, next) => {
+  try {
+    const roleRows = await query('SELECT role, COUNT(*) AS n FROM users GROUP BY role');
+    const roles = { business: 0, advisor: 0, admin: 0 };
+    for (const r of roleRows) roles[r.role] = Number(r.n);
+
+    const [counts] = await query(
+      `SELECT
+         (SELECT COUNT(*) FROM users WHERE is_active = 0) AS inactive_users,
+         (SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL 7 DAY) AS new_users_7d,
+         (SELECT COUNT(*) FROM assessments) AS assessments,
+         (SELECT ROUND(AVG(total_score)) FROM assessments) AS avg_score,
+         (SELECT COUNT(*) FROM website_audits) AS audits`
+    );
+
+    const sectorRows = await query(
+      `SELECT s.label, COUNT(u.id) AS businesses
+       FROM sectors s
+       LEFT JOIN users u ON u.sector_id = s.id AND u.role = 'business'
+       GROUP BY s.id, s.label
+       ORDER BY businesses DESC, s.id ASC`
+    );
+
+    return res.json({
+      users_by_role: roles,
+      inactive_users: Number(counts.inactive_users),
+      new_users_7d: Number(counts.new_users_7d),
+      assessments: Number(counts.assessments),
+      average_score: counts.avg_score == null ? null : Number(counts.avg_score),
+      website_audits: Number(counts.audits),
+      businesses_by_sector: sectorRows.map((r) => ({ label: r.label, businesses: Number(r.businesses) })),
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get('/users', async (req, res, next) => {
+  try {
+    const search = String(req.query.search || '').trim();
+    const role = String(req.query.role || '').trim();
+    const where = [];
+    const params = {};
+
+    if (['business', 'advisor', 'admin'].includes(role)) {
+      where.push('u.role = :role');
+      params.role = role;
+    }
+    if (search) {
+      where.push('(u.name LIKE :q OR u.email LIKE :q OR u.business_name LIKE :q)');
+      params.q = `%${search}%`;
+    }
+
+    const rows = await query(
+      `SELECT u.id, u.name, u.email, u.role, u.business_name, u.is_active, u.created_at,
+              s.label AS sector_label
+       FROM users u
+       LEFT JOIN sectors s ON s.id = u.sector_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY u.created_at DESC, u.id DESC
+       LIMIT 200`,
+      params
+    );
+
+    return res.json({
+      users: rows.map((u) => ({ ...u, is_active: Boolean(u.is_active) })),
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.patch('/users/:id/active', async (req, res, next) => {
+  try {
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId) || userId < 1) {
+      return res.status(400).json({ message: 'Invalid user id' });
+    }
+    if (typeof req.body?.active !== 'boolean') {
+      return res.status(400).json({ message: 'active must be true or false' });
+    }
+    if (userId === req.user.id) {
+      return res.status(400).json({ message: 'You can’t deactivate your own account.' });
+    }
+
+    const result = await query('UPDATE users SET is_active = :active WHERE id = :id', {
+      active: req.body.active ? 1 : 0,
+      id: userId,
+    });
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    return res.json({ id: userId, is_active: req.body.active });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get('/questions', async (req, res, next) => {
+  try {
+    const sectors = await query('SELECT `key`, label FROM sectors ORDER BY id ASC');
+    if (!sectors.length) return res.json({ sectors: [], sector: null, questions: [] });
+
+    const requested = String(req.query.sector || '');
+    const sector = sectors.find((s) => s.key === requested) || sectors[0];
+
+    const questions = await query(
+      `SELECT q.id, q.text, q.tip, q.sort_order, c.label AS category
+       FROM questions q
+       JOIN sectors s ON s.id = q.sector_id
+       JOIN categories c ON c.id = q.category_id
+       WHERE s.\`key\` = :key
+       ORDER BY c.id ASC, q.sort_order ASC`,
+      { key: sector.key }
+    );
+
+    return res.json({ sectors, sector, questions });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.patch('/questions/:id', async (req, res, next) => {
+  try {
+    const questionId = Number(req.params.id);
+    if (!Number.isInteger(questionId) || questionId < 1) {
+      return res.status(400).json({ message: 'Invalid question id' });
+    }
+
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim() : undefined;
+    const tip = typeof req.body?.tip === 'string' ? req.body.tip.trim() : undefined;
+    if (text === undefined && tip === undefined) {
+      return res.status(400).json({ message: 'Provide text and/or tip to update' });
+    }
+    if (text !== undefined && (!text || text.length > 500)) {
+      return res.status(400).json({ message: 'Question text must be 1–500 characters' });
+    }
+    if (tip !== undefined && tip.length > 500) {
+      return res.status(400).json({ message: 'Tip must be at most 500 characters' });
+    }
+
+    const sets = [];
+    const params = { id: questionId };
+    if (text !== undefined) {
+      sets.push('text = :text');
+      params.text = text;
+    }
+    if (tip !== undefined) {
+      sets.push('tip = :tip');
+      params.tip = tip;
+    }
+
+    const result = await query(`UPDATE questions SET ${sets.join(', ')} WHERE id = :id`, params);
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    const rows = await query('SELECT id, text, tip FROM questions WHERE id = :id', { id: questionId });
+    return res.json(rows[0]);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+module.exports = router;

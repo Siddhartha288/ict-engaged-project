@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LogOut, ClipboardList, Users, Sparkles, Lightbulb } from 'lucide-react';
+import { LayoutDashboard, LogOut, ClipboardList, Users, Sparkles, Lightbulb, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
 
@@ -35,16 +35,27 @@ export default function Navbar() {
           </NavLink>
           {isAuthenticated ? (
             <>
-              <NavLink to="/dashboard" className={linkClass}>
-                <span className="inline-flex items-center gap-1.5">
-                  <LayoutDashboard size={14} /> Dashboard
-                </span>
-              </NavLink>
-              <NavLink to="/assessment" className={linkClass}>
-                <span className="inline-flex items-center gap-1.5">
-                  <ClipboardList size={14} /> Assessment
-                </span>
-              </NavLink>
+              {user?.role !== 'admin' && (
+                <>
+                  <NavLink to="/dashboard" className={linkClass}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <LayoutDashboard size={14} /> Dashboard
+                    </span>
+                  </NavLink>
+                  <NavLink to="/assessment" className={linkClass}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <ClipboardList size={14} /> Assessment
+                    </span>
+                  </NavLink>
+                </>
+              )}
+              {user?.role === 'admin' && (
+                <NavLink to="/admin" className={linkClass}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Shield size={14} /> Admin
+                  </span>
+                </NavLink>
+              )}
               {user?.role === 'advisor' && (
                 <NavLink to="/advisor" className={linkClass}>
                   <span className="inline-flex items-center gap-1.5">

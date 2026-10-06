@@ -14,6 +14,7 @@ import BusinessDetail from './pages/BusinessDetail';
 import AdvisorRunAssessment from './pages/AdvisorRunAssessment';
 import BusinessReport from './pages/BusinessReport';
 import ProblemsAndSolutions from './pages/ProblemsAndSolutions';
+import AdminPortal from './pages/AdminPortal';
 
 export default function App() {
   return (
@@ -74,6 +75,14 @@ export default function App() {
                   element={
                     <ProtectedRoute roles={['advisor']}>
                       <BusinessReport />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute roles={['admin']}>
+                      <AdminPortal />
                     </ProtectedRoute>
                   }
                 />
