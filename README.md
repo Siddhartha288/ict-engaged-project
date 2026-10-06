@@ -165,6 +165,7 @@ Each category score is the percentage of "Yes" answers; the overall score is the
 ## Known limitations
 
 - No email, so there is no "forgot password" reset or email notification. A user who forgets their password needs an admin or the project team to reset it directly in the database.
+- Advisor access is broad: any advisor account can view any business (assessments, roadmaps, website checks, notes), and anyone can register as an advisor. Restricting advisors to their own caseload would be the next hardening step. The privacy notice says so.
 - Claiming an advisor-created account needs only the client's email address (there is no email verification), so an advisor should tell the client to claim it promptly.
 - Login rate limiting is in memory and per process (see Security notes).
 - On the live site no AI key is configured, so roadmaps use the rule-based generator.

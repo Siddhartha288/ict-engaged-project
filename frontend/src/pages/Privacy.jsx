@@ -66,10 +66,12 @@ export default function Privacy() {
             <strong className="text-text">You</strong> can see your own data.
           </li>
           <li>
-            <strong className="text-text">An advisor</strong> can see the businesses linked to
-            them — by an invite code, or because they created the account for you — including
-            assessment results, roadmap progress and website checks. They cannot see other
-            advisors' clients.
+            <strong className="text-text">Advisors</strong> can see business accounts —
+            including name, email, assessment results, roadmap progress, website checks and
+            advisor notes. An advisor's main list shows the businesses linked to them (by an
+            invite code, or because they created the account), but in this prototype any advisor
+            account can also look up any other business on the platform. Anyone can register as
+            an advisor, so please bear this in mind.
           </li>
           <li>
             <strong className="text-text">Platform administrators</strong> can see account details
