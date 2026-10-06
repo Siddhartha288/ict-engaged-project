@@ -53,12 +53,19 @@ export default function Claim() {
           <input
             type="password"
             required
-            minLength={6}
+            minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-xl border border-border bg-ink px-3 py-2.5 text-sm text-text outline-none focus:border-amber"
           />
         </label>
+        <p className="text-xs text-muted">
+          At least 8 characters. See how we handle your information in the{' '}
+          <Link to="/privacy" target="_blank" className="text-teal hover:underline">
+            privacy notice
+          </Link>
+          .
+        </p>
         <button
           type="submit"
           disabled={loading}

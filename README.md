@@ -25,6 +25,7 @@ Built for ICT313 (aligned to UN SDG 9: Industry, Innovation and Infrastructure).
 
 **Admins**
 - Site-wide stats; search users; activate/deactivate accounts; promote/demote admins.
+- Activity log: failed logins, lockouts, password changes and every admin action, with time and IP.
 - Edit question wording and roadmap tips per sector (wording only — adding or removing questions would invalidate past scoring).
 
 ## Roles
@@ -92,10 +93,20 @@ node create-admin.js admin@example.com "Admin Name" "a-strong-password"
 
 If the email already exists, that account is promoted to admin and its password replaced.
 
+### 5. Optional: demo data
+
+```bash
+cd backend
+node seed-demo.js            # 15 demo businesses, 1 advisor, 1 unclaimed client
+node seed-demo.js --remove   # delete all demo data again
+```
+
+Gives benchmarking, progress tracking and the advisor cohort report real numbers to show. Everything is clearly labelled: emails end in `@demo.biztransform.test` and business names end in "(demo)". It uses the real API (so scoring and roadmaps are the real code), then backdates timestamps so the history spans several weeks. The shared demo password is printed when it finishes. Website checks in the demo data use fake `.example` addresses.
+
 ## Testing and linting
 
 ```bash
-cd backend && npm test        # 38 tests: auth, RBAC, scoring, roadmap, benchmark, advisor flows, admin, SSRF
+cd backend && npm test        # 45 tests: auth, RBAC, scoring, roadmap, benchmark, advisor flows, admin, security, SSRF
 cd frontend && npm run lint
 ```
 
@@ -111,7 +122,7 @@ cp -r frontend/dist backend/public      # served by Express, with SPA fallback
 cd backend && npm install --omit=dev && node server.js
 ```
 
-The live site runs under pm2 behind the host's reverse proxy. Database changes on a live system should be **additive** (`ALTER TABLE ... ADD COLUMN`, `CREATE TABLE`) — don't re-run `db:setup`, which would wipe real users.
+The live site runs under pm2 behind the host's reverse proxy. Database changes on a live system should be **additive** (`ALTER TABLE ... ADD COLUMN`, `CREATE TABLE`) — don't re-run `db:setup`, which would wipe real users. When upgrading an existing database, run `node migrate-security.js` (idempotent; adds the `audit_log` table and `users.password_changed_at`) **before** restarting the server.
 
 ## API overview
 
@@ -120,6 +131,7 @@ All routes are under `/api`. "Auth" means a valid, active user; role requirement
 | Area | Routes | Access |
 |------|--------|--------|
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/claim` | Public |
+| Account | `POST /auth/change-password` | Auth |
 | Sectors | `GET /sectors` | Public |
 | Assessment | `GET /questions`, `POST /assessments`, `GET /assessments`, `GET /assessments/:id`, `GET /assessments/:id/benchmark` | Auth (owner or advisor) |
 | Roadmap | `POST/GET /assessments/:id/roadmap`, `PATCH /assessments/:id/roadmap/actions/:index` | Auth (owner or advisor) |
@@ -144,13 +156,17 @@ Each category score is the percentage of "Yes" answers; the overall score is the
 - Passwords are bcrypt-hashed and never returned by the API. Secrets live in environment variables, not in git.
 - Every query is parameterised.
 - A user's **role and active-state are read from the database on every request**, not trusted from the token, so deactivation and role changes apply immediately.
-- Admins cannot self-register, cannot deactivate themselves, and cannot change their own role (so an admin always remains). Role changes are written to the server log.
+- Admins cannot self-register, cannot deactivate themselves, and cannot change their own role (so an admin always remains).
+- **Failed-login logging and rate limiting.** Failed logins, lockouts, password changes and admin actions are recorded in the `audit_log` table (never the password) and shown to admins on the Activity tab. After 8 failed attempts on one account, or 30 from one IP, within 15 minutes, login returns `429` with a `Retry-After` header; a success resets the account counter. The counters are in memory, so they reset when the server restarts, and they assume one server process.
+- **Change password** requires the current password, and ends every session issued before the change (the browser doing the change gets a fresh token). Passwords must be at least 8 characters.
+- A **privacy notice** (`/privacy`, linked from the footer and registration) describes what is collected and who can see it.
 - The website audit fetches user-supplied URLs, so it is hardened against SSRF: http(s) only, public IPs only (loopback, private ranges and cloud-metadata addresses are refused), every redirect hop re-validated, with response-size and time limits.
 
 ## Known limitations
 
-- No email, so there is no password reset or email notification, and no in-app change-password page yet.
-- Login attempts are not rate-limited and failed logins are not logged.
+- No email, so there is no "forgot password" reset or email notification. A user who forgets their password needs an admin or the project team to reset it directly in the database.
+- Claiming an advisor-created account needs only the client's email address (there is no email verification), so an advisor should tell the client to claim it promptly.
+- Login rate limiting is in memory and per process (see Security notes).
 - On the live site no AI key is configured, so roadmaps use the rule-based generator.
 - Scope versus the ICT313 proposal: three roles are implemented (business, advisor, admin). The proposal's Employee, Customer, and Supplier roles, and its operations/ROI-analytics workflows beyond the roadmap, are not built.
 
@@ -163,14 +179,16 @@ backend/
   schema.sql              tables + sector/category seed (destructive)
   seed-questions.js       the 135 sector questions and tips
   create-admin.js         create/promote an admin
+  migrate-security.js     additive, idempotent migration for existing databases
+  seed-demo.js            labelled demo data (--remove to delete)
   routes/                 auth, assessments, roadmap, admin (advisor), platform (admin), notes, audit, sectors
-  middleware/auth.js      authentication + role checks
-  services/               aiService.js, websiteAudit.js, resourceLinks.js
+  middleware/             auth.js (authentication + role checks), rateLimit.js (login throttling)
+  services/               aiService.js, websiteAudit.js, resourceLinks.js, auditLog.js
   test/                   API and SSRF tests
 frontend/
   src/pages/              Landing, Login, Register, Claim, Assessment, Dashboard,
                           AdvisorPortal, BusinessDetail, BusinessReport, AdvisorRunAssessment,
-                          AdminPortal, ProblemsAndSolutions
+                          AdminPortal, Account, Privacy, ProblemsAndSolutions
   src/components/         charts, roadmap cards, website audit card, navbar, theme toggle
   src/context/            auth and theme state
 ```

@@ -8,6 +8,7 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS audit_log;
 DROP TABLE IF EXISTS website_audits;
 DROP TABLE IF EXISTS advisor_notes;
 DROP TABLE IF EXISTS roadmaps;
@@ -40,6 +41,7 @@ CREATE TABLE users (
   advisor_code VARCHAR(20) NULL,
   advisor_id INT UNSIGNED NULL,
   claimed_at TIMESTAMP NULL,
+  password_changed_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
   UNIQUE KEY uq_users_advisor_code (advisor_code),
@@ -153,6 +155,21 @@ CREATE TABLE website_audits (
   CONSTRAINT fk_audits_user
     FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Security and administrative events. No foreign keys on purpose: the history
+-- must survive even if the user it refers to is later deleted.
+CREATE TABLE audit_log (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  event_type VARCHAR(40) NOT NULL,
+  actor_user_id INT UNSIGNED NULL,
+  actor_email VARCHAR(255) NULL,
+  target_user_id INT UNSIGNED NULL,
+  detail VARCHAR(500) NULL,
+  ip VARCHAR(64) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_audit_created (created_at),
+  KEY idx_audit_type (event_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed categories

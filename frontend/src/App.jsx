@@ -15,6 +15,9 @@ import AdvisorRunAssessment from './pages/AdvisorRunAssessment';
 import BusinessReport from './pages/BusinessReport';
 import ProblemsAndSolutions from './pages/ProblemsAndSolutions';
 import AdminPortal from './pages/AdminPortal';
+import Account from './pages/Account';
+import Privacy from './pages/Privacy';
+import Footer from './components/Footer';
 
 export default function App() {
   return (
@@ -30,6 +33,15 @@ export default function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/claim" element={<Claim />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route
+                  path="/account"
+                  element={
+                    <ProtectedRoute>
+                      <Account />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/assessment"
                   element={
@@ -88,6 +100,7 @@ export default function App() {
                 />
               </Routes>
             </main>
+            <Footer />
           </div>
         </BrowserRouter>
       </AuthProvider>

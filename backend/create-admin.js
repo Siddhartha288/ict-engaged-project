@@ -28,15 +28,17 @@ async function main() {
 
   if (existing.length) {
     await query(
-      "UPDATE users SET role = 'admin', is_active = 1, password_hash = :hash WHERE id = :id",
-      { hash: password_hash, id: existing[0].id }
+      "UPDATE users SET role = 'admin', is_active = 1, password_hash = :hash, password_changed_at = :now WHERE id = :id",
+      { hash: password_hash, now: new Date(Math.floor(Date.now() / 1000) * 1000), id: existing[0].id }
     );
+    await query("INSERT INTO audit_log (event_type, actor_email, detail) VALUES ('admin_created', :email, 'promoted via create-admin.js')", { email: normalizedEmail }).catch(() => {});
     console.log(`Promoted existing account ${normalizedEmail} to admin.`);
   } else {
     await query(
       "INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :hash, 'admin')",
       { name: name.trim(), email: normalizedEmail, hash: password_hash }
     );
+    await query("INSERT INTO audit_log (event_type, actor_email, detail) VALUES ('admin_created', :email, 'created via create-admin.js')", { email: normalizedEmail }).catch(() => {});
     console.log(`Created admin account ${normalizedEmail}.`);
   }
   await pool.end();

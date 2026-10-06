@@ -16,6 +16,7 @@ export default function Register() {
     sector: '',
     advisor_code: (searchParams.get('code') || '').toUpperCase(),
   });
+  const [agreed, setAgreed] = useState(false);
   const [sectors, setSectors] = useState([]);
   const [error, setError] = useState('');
 
@@ -91,11 +92,12 @@ export default function Register() {
           <input
             type="password"
             required
-            minLength={6}
+            minLength={8}
             value={form.password}
             onChange={update('password')}
             className="w-full rounded-xl border border-border bg-ink px-3 py-2.5 text-sm outline-none focus:border-amber"
           />
+          <span className="mt-1 block text-xs text-muted">At least 8 characters.</span>
         </label>
 
         <fieldset>
@@ -175,6 +177,23 @@ export default function Register() {
             </label>
           </>
         )}
+
+        <label className="flex items-start gap-2 text-xs text-muted">
+          <input
+            type="checkbox"
+            required
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5 accent-amber"
+          />
+          <span>
+            I have read the{' '}
+            <Link to="/privacy" target="_blank" className="text-teal hover:underline">
+              privacy notice
+            </Link>{' '}
+            and agree to my details being used as it describes.
+          </span>
+        </label>
 
         <button
           type="submit"

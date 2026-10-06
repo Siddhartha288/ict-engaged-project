@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LogOut, ClipboardList, Users, Sparkles, Lightbulb, Shield } from 'lucide-react';
+import { LayoutDashboard, LogOut, ClipboardList, Users, Sparkles, Lightbulb, Shield, UserCog } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
 
@@ -63,6 +63,11 @@ export default function Navbar() {
                   </span>
                 </NavLink>
               )}
+              <NavLink to="/account" className={linkClass}>
+                <span className="inline-flex items-center gap-1.5">
+                  <UserCog size={14} /> Account
+                </span>
+              </NavLink>
               <button
                 type="button"
                 onClick={handleLogout}

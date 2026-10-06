@@ -15,6 +15,9 @@ const auditRoutes = require('./routes/audit');
 const platformRoutes = require('./routes/platform');
 
 const app = express();
+// The host puts a reverse proxy in front of Node; trust its X-Forwarded-For so
+// req.ip is the real client (needed for per-IP login throttling and audit logs).
+app.set('trust proxy', 1);
 const PORT = Number(process.env.PORT) || 5000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 

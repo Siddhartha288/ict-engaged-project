@@ -2,6 +2,8 @@ const express = require('express');
 const { query } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { assignUniqueAdvisorCode } = require('./auth');
+const { clientIp } = require('../middleware/rateLimit');
+const auditLog = require('../services/auditLog');
 
 const router = express.Router();
 const ROLES = ['business', 'advisor', 'admin'];
@@ -99,6 +101,13 @@ router.patch('/users/:id/active', async (req, res, next) => {
     if (!result.affectedRows) {
       return res.status(404).json({ message: 'User not found' });
     }
+    await auditLog.record('user_active_changed', {
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      targetId: userId,
+      detail: req.body.active ? 'activated' : 'deactivated',
+      ip: clientIp(req),
+    });
     return res.json({ id: userId, is_active: req.body.active });
   } catch (err) {
     return next(err);
@@ -139,10 +148,31 @@ router.patch('/users/:id/role', async (req, res, next) => {
       id: userId,
     });
 
-    console.log(
-      `[audit] admin #${req.user.id} (${req.user.email}) changed role of user #${userId} (${target.email}): ${target.role} -> ${newRole}`
-    );
+    await auditLog.record('role_changed', {
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      targetId: userId,
+      detail: `${target.email}: ${target.role} -> ${newRole}`,
+      ip: clientIp(req),
+    });
     return res.json({ id: userId, role: newRole });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Security and admin activity: failed logins, lockouts, role changes, etc.
+router.get('/activity', async (req, res, next) => {
+  try {
+    const type = typeof req.query.type === 'string' ? req.query.type.trim() : '';
+    const where = type ? 'WHERE event_type = :type' : '';
+    const events = await query(
+      `SELECT id, event_type, actor_email, target_user_id, detail, ip, created_at
+       FROM audit_log ${where} ORDER BY id DESC LIMIT 200`,
+      type ? { type } : {}
+    );
+    const types = await query('SELECT DISTINCT event_type FROM audit_log ORDER BY event_type');
+    return res.json({ events, types: types.map((t) => t.event_type) });
   } catch (err) {
     return next(err);
   }
@@ -208,6 +238,12 @@ router.patch('/questions/:id', async (req, res, next) => {
     }
 
     const rows = await query('SELECT id, text, tip FROM questions WHERE id = :id', { id: questionId });
+    await auditLog.record('question_edited', {
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      detail: `question #${questionId}`,
+      ip: clientIp(req),
+    });
     return res.json(rows[0]);
   } catch (err) {
     return next(err);

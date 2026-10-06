@@ -3,9 +3,13 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { query } = require('../db');
+const { authenticate } = require('../middleware/auth');
+const { loginGuard, clientIp, tooManyMessage } = require('../middleware/rateLimit');
+const auditLog = require('../services/auditLog');
 
 const router = express.Router();
 const SALT_ROUNDS = 10;
+const MIN_PASSWORD = 8;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
 
 function signToken(user) {
@@ -76,8 +80,8 @@ router.post('/register', async (req, res, next) => {
     if (!email || typeof email !== 'string' || !email.trim()) {
       return res.status(400).json({ message: 'Email is required' });
     }
-    if (!password || typeof password !== 'string' || password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (!password || typeof password !== 'string' || password.length < MIN_PASSWORD) {
+      return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
     }
 
     const normalizedRole = role === 'advisor' ? 'advisor' : 'business';
@@ -161,27 +165,107 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ message: 'Password is required' });
     }
 
+    const normEmail = email.trim().toLowerCase();
+    const ip = clientIp(req);
+
+    const wait = loginGuard.check(normEmail, ip);
+    if (wait > 0) {
+      await auditLog.record('login_blocked', { actorEmail: normEmail, ip, detail: 'rate limit' });
+      res.set('Retry-After', String(wait));
+      return res.status(429).json({ message: tooManyMessage(wait) });
+    }
+
     const rows = await query(`${USER_SELECT} WHERE u.email = :email LIMIT 1`, {
-      email: email.trim().toLowerCase(),
+      email: normEmail,
     });
 
     if (!rows.length || !rows[0].password_hash) {
+      loginGuard.fail(normEmail, ip);
+      await auditLog.record('login_failed', {
+        actorEmail: normEmail,
+        ip,
+        detail: rows.length ? 'account not claimed' : 'unknown account',
+      });
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
     const user = rows[0];
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
+      loginGuard.fail(normEmail, ip);
+      await auditLog.record('login_failed', {
+        actorId: user.id,
+        actorEmail: normEmail,
+        ip,
+        detail: 'wrong password',
+      });
       return res.status(401).json({ message: 'Invalid email or password' });
     }
     // Checked after the password so the status isn't revealed to someone who
     // doesn't know the credentials.
     if (!user.is_active) {
+      await auditLog.record('login_deactivated', { actorId: user.id, actorEmail: normEmail, ip });
       return res.status(403).json({ message: 'This account has been deactivated. Contact an administrator.' });
     }
 
+    loginGuard.succeed(normEmail);
     const token = signToken(user);
     return res.json({ token, user: publicUser(user) });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// A logged-in user changing their own password. The current password is
+// required (a stolen session alone can't take the account over), attempts count
+// toward the same brute-force limits as login, and every token issued before
+// the change stops working.
+router.post('/change-password', authenticate, async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body || {};
+    const ip = clientIp(req);
+    const key = `change:${req.user.id}`;
+
+    if (!current_password || typeof current_password !== 'string') {
+      return res.status(400).json({ message: 'Current password is required' });
+    }
+    if (!new_password || typeof new_password !== 'string' || new_password.length < MIN_PASSWORD) {
+      return res.status(400).json({ message: `New password must be at least ${MIN_PASSWORD} characters` });
+    }
+    if (new_password === current_password) {
+      return res.status(400).json({ message: 'New password must be different from the current one' });
+    }
+
+    const wait = loginGuard.check(key, ip);
+    if (wait > 0) {
+      res.set('Retry-After', String(wait));
+      return res.status(429).json({ message: tooManyMessage(wait) });
+    }
+
+    const rows = await query(`${USER_SELECT} WHERE u.id = :id LIMIT 1`, { id: req.user.id });
+    const user = rows[0];
+    if (!user || !user.password_hash || !(await bcrypt.compare(current_password, user.password_hash))) {
+      loginGuard.fail(key, ip);
+      await auditLog.record('password_change_failed', {
+        actorId: req.user.id,
+        actorEmail: req.user.email,
+        ip,
+        detail: 'wrong current password',
+      });
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    const password_hash = await bcrypt.hash(new_password, SALT_ROUNDS);
+    // Whole seconds, to match the second resolution of JWT "iat" and the column.
+    const changedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
+    await query(
+      'UPDATE users SET password_hash = :password_hash, password_changed_at = :changedAt WHERE id = :id',
+      { password_hash, changedAt, id: user.id }
+    );
+    loginGuard.succeed(key);
+    await auditLog.record('password_changed', { actorId: user.id, actorEmail: user.email, ip });
+
+    return res.json({ token: signToken(user), user: publicUser(user) });
   } catch (err) {
     return next(err);
   }
@@ -194,8 +278,8 @@ router.post('/claim', async (req, res, next) => {
     if (!email || typeof email !== 'string' || !email.trim()) {
       return res.status(400).json({ message: 'Email is required' });
     }
-    if (!password || typeof password !== 'string' || password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (!password || typeof password !== 'string' || password.length < MIN_PASSWORD) {
+      return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
     }
 
     const rows = await query(

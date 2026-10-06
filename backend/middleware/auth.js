@@ -18,11 +18,18 @@ async function authenticate(req, res, next) {
     // Role and active-state come from the database, not the token, so a
     // deactivation or role change takes effect immediately instead of
     // lingering until the 7-day token expires.
-    const rows = await query('SELECT role, is_active FROM users WHERE id = :id LIMIT 1', {
+    const rows = await query('SELECT role, is_active, password_changed_at FROM users WHERE id = :id LIMIT 1', {
       id: payload.id,
     });
     if (!rows.length || !rows[0].is_active) {
       return res.status(401).json({ message: 'This account is not active' });
+    }
+
+    // A password change invalidates every token issued before it, so a stolen
+    // token stops working as soon as the owner changes their password.
+    const changedAt = rows[0].password_changed_at;
+    if (changedAt && payload.iat * 1000 < new Date(changedAt).getTime()) {
+      return res.status(401).json({ message: 'Your session has expired. Please log in again.' });
     }
 
     req.user = {

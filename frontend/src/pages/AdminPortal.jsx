@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BarChart3, Users, ListChecks, Search, Save, Check } from 'lucide-react';
+import { BarChart3, Users, ListChecks, Search, Save, Check, ShieldAlert } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -7,6 +7,7 @@ const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'questions', label: 'Questions', icon: ListChecks },
+  { id: 'activity', label: 'Activity', icon: ShieldAlert },
 ];
 
 function Stat({ label, value }) {
@@ -392,6 +393,110 @@ function QuestionsTab() {
   );
 }
 
+const EVENT_LABELS = {
+  login_failed: 'Failed login',
+  login_blocked: 'Login blocked (rate limit)',
+  login_deactivated: 'Deactivated account login',
+  password_changed: 'Password changed',
+  password_change_failed: 'Password change failed',
+  role_changed: 'Role changed',
+  user_active_changed: 'Account (de)activated',
+  question_edited: 'Question edited',
+  admin_created: 'Admin created (CLI)',
+};
+const WARN_EVENTS = new Set(['login_failed', 'login_blocked', 'login_deactivated', 'password_change_failed']);
+
+function ActivityTab() {
+  const [events, setEvents] = useState([]);
+  const [types, setTypes] = useState([]);
+  const [type, setType] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get('/platform/activity', { params: { type: type || undefined } });
+        if (cancelled) return;
+        setEvents(data.events || []);
+        setTypes(data.types || []);
+        setError('');
+      } catch (err) {
+        if (!cancelled) setError(err.response?.data?.message || 'Failed to load activity');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [type]);
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-amber"
+        >
+          <option value="">All events</option>
+          {types.map((t) => (
+            <option key={t} value={t}>
+              {EVENT_LABELS[t] || t}
+            </option>
+          ))}
+        </select>
+        <span className="font-mono text-xs text-muted">latest {events.length} (max 200)</span>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-border bg-ink/40 font-mono text-xs uppercase tracking-wide text-muted">
+              <tr>
+                <th className="px-4 py-3 font-medium">When</th>
+                <th className="px-4 py-3 font-medium">Event</th>
+                <th className="px-4 py-3 font-medium">Account</th>
+                <th className="px-4 py-3 font-medium">Detail</th>
+                <th className="px-4 py-3 font-medium">IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-muted">
+                    Nothing recorded yet.
+                  </td>
+                </tr>
+              )}
+              {events.map((e) => (
+                <tr key={e.id} className="border-b border-border/60 last:border-0 hover:bg-ink/30">
+                  <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-muted">
+                    {new Date(e.created_at).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className={WARN_EVENTS.has(e.event_type) ? 'text-amber' : 'text-text'}>
+                      {EVENT_LABELS[e.event_type] || e.event_type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-muted">{e.actor_email || '—'}</td>
+                  <td className="px-4 py-2.5 text-muted">{e.detail || '—'}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-muted">{e.ip || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPortal() {
   const [tab, setTab] = useState('overview');
 
@@ -420,6 +525,7 @@ export default function AdminPortal() {
       {tab === 'overview' && <Overview />}
       {tab === 'users' && <UsersTab />}
       {tab === 'questions' && <QuestionsTab />}
+      {tab === 'activity' && <ActivityTab />}
     </div>
   );
 }

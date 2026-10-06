@@ -57,6 +57,14 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const changePassword = async (current_password, new_password) => {
+    // The server ends every older session on a password change and returns a
+    // fresh token, so swap it in to keep this browser logged in.
+    const { data } = await api.post('/auth/change-password', { current_password, new_password });
+    setToken(data.token);
+    setUser(data.user);
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -71,6 +79,7 @@ export function AuthProvider({ children }) {
       login,
       register,
       claim,
+      changePassword,
       logout,
     }),
     [user, token, loading]
