@@ -85,6 +85,7 @@ function UsersTab() {
   const [role, setRole] = useState('');
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [demotingId, setDemotingId] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -100,6 +101,27 @@ function UsersTab() {
     const t = setTimeout(load, 250);
     return () => clearTimeout(t);
   }, [load]);
+
+  const changeRole = async (u, newRole) => {
+    setBusyId(u.id);
+    setError('');
+    try {
+      await api.patch(`/platform/users/${u.id}/role`, { role: newRole });
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role: newRole } : x)));
+      setDemotingId(null);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to change role');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const makeAdmin = (u) => {
+    const ok = window.confirm(
+      `Make ${u.name} (${u.email}) an admin?\n\nThey will be able to manage all users and edit questions, and will no longer see the ${u.role} pages. You can undo this with "Remove admin".`
+    );
+    if (ok) changeRole(u, 'admin');
+  };
 
   const toggleActive = async (u) => {
     setBusyId(u.id);
@@ -155,12 +177,13 @@ function UsersTab() {
                 <th className="px-4 py-3 font-medium">Business / sector</th>
                 <th className="px-4 py-3 font-medium">Joined</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Access</th>
               </tr>
             </thead>
             <tbody>
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-muted">
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted">
                     No users match.
                   </td>
                 </tr>
@@ -193,6 +216,50 @@ function UsersTab() {
                     >
                       {u.is_active ? 'Active' : 'Deactivated'}
                     </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    {u.id === me?.id ? (
+                      <span className="text-xs text-muted">You</span>
+                    ) : u.role !== 'admin' ? (
+                      <button
+                        type="button"
+                        disabled={busyId === u.id}
+                        onClick={() => makeAdmin(u)}
+                        className="rounded-lg border border-amber/40 bg-amber/10 px-2.5 py-1 text-xs text-amber transition hover:bg-amber/20 disabled:opacity-40"
+                      >
+                        Make admin
+                      </button>
+                    ) : demotingId === u.id ? (
+                      <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                        Set to
+                        {['business', 'advisor'].map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            disabled={busyId === u.id}
+                            onClick={() => changeRole(u, r)}
+                            className="rounded-lg border border-border px-2 py-1 capitalize text-text transition hover:border-teal/40 disabled:opacity-40"
+                          >
+                            {r}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setDemotingId(null)}
+                          className="px-1 text-muted underline hover:text-text"
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDemotingId(u.id)}
+                        className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition hover:border-red-500/40 hover:text-red-300"
+                      >
+                        Remove admin
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

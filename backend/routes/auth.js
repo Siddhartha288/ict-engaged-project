@@ -229,3 +229,4 @@ router.post('/claim', async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.assignUniqueAdvisorCode = assignUniqueAdvisorCode;

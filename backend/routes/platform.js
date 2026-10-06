@@ -1,8 +1,10 @@
 const express = require('express');
 const { query } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { assignUniqueAdvisorCode } = require('./auth');
 
 const router = express.Router();
+const ROLES = ['business', 'advisor', 'admin'];
 router.use(authenticate, requireRole('admin'));
 
 router.get('/stats', async (req, res, next) => {
@@ -98,6 +100,49 @@ router.patch('/users/:id/active', async (req, res, next) => {
       return res.status(404).json({ message: 'User not found' });
     }
     return res.json({ id: userId, is_active: req.body.active });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.patch('/users/:id/role', async (req, res, next) => {
+  try {
+    const userId = Number(req.params.id);
+    const newRole = req.body?.role;
+    if (!Number.isInteger(userId) || userId < 1) {
+      return res.status(400).json({ message: 'Invalid user id' });
+    }
+    if (!ROLES.includes(newRole)) {
+      return res.status(400).json({ message: `Role must be one of: ${ROLES.join(', ')}` });
+    }
+    // Blocking self-changes guarantees at least one admin always remains.
+    if (userId === req.user.id) {
+      return res.status(400).json({ message: 'You can’t change your own role.' });
+    }
+
+    const rows = await query('SELECT id, email, role, advisor_code FROM users WHERE id = :id LIMIT 1', {
+      id: userId,
+    });
+    if (!rows.length) return res.status(404).json({ message: 'User not found' });
+    const target = rows[0];
+    if (target.role === newRole) {
+      return res.status(400).json({ message: `That user is already ${newRole === 'admin' ? 'an admin' : `a ${newRole}`}.` });
+    }
+
+    // An advisor needs an invite code; accounts created as admins don't have one.
+    const advisorCode =
+      newRole === 'advisor' && !target.advisor_code ? await assignUniqueAdvisorCode() : target.advisor_code;
+
+    await query('UPDATE users SET role = :role, advisor_code = :code WHERE id = :id', {
+      role: newRole,
+      code: advisorCode,
+      id: userId,
+    });
+
+    console.log(
+      `[audit] admin #${req.user.id} (${req.user.email}) changed role of user #${userId} (${target.email}): ${target.role} -> ${newRole}`
+    );
+    return res.json({ id: userId, role: newRole });
   } catch (err) {
     return next(err);
   }
