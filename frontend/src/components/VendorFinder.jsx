@@ -11,7 +11,7 @@ export default function VendorFinder() {
     window.open(buildVendorSearchUrl(q), '_blank', 'noopener,noreferrer');
   };
 
-  const useCategory = (cat) => {
+  const selectCategory = (cat) => {
     setQuery(cat.query);
     setActiveTip(cat);
   };
@@ -51,7 +51,7 @@ export default function VendorFinder() {
           <button
             key={cat.label}
             type="button"
-            onClick={() => useCategory(cat)}
+            onClick={() => selectCategory(cat)}
             className={`rounded-full border px-3 py-1.5 font-mono text-xs transition ${
               activeTip?.label === cat.label
                 ? 'border-teal text-teal'

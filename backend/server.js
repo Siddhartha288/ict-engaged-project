@@ -64,6 +64,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`BizTransform API listening on http://localhost:${PORT}`);
-});
+// The test suite sets BIZTRANSFORM_NO_LISTEN so it can import the app and bind
+// its own ephemeral port. In normal runs (node, pm2) this is unset and the
+// server listens as usual.
+if (process.env.BIZTRANSFORM_NO_LISTEN !== '1') {
+  app.listen(PORT, () => {
+    console.log(`BizTransform API listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

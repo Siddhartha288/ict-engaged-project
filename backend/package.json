@@ -6,17 +6,15 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "db:setup": "node load-schema.js && node seed-questions.js"
+    "db:setup": "node load-schema.js && node seed-questions.js",
+    "test": "node --test --test-concurrency=1"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.11.0"
-  },
-  "allowScripts": {
-    "bcrypt@5.1.1": true
   }
 }
