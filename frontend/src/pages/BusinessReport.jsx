@@ -157,7 +157,9 @@ export default function BusinessReport() {
                   This business scored <span className="font-semibold text-amber-600">{detail.total_score}%</span>,
                   compared to a sector average of{' '}
                   <span className="font-semibold text-teal-600">{benchmark.overall_avg_score}%</span> across{' '}
-                  {benchmark.sample_size} businesses.
+                  {benchmark.sample_size} businesses
+                  {benchmark.small_sample ? ' (a small sample, so indicative only)' : ''}.
+                  {benchmark.includes_demo ? ' Includes demo data.' : ''}
                 </p>
               </div>
             )}

@@ -8,6 +8,8 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS report_shares;
+DROP TABLE IF EXISTS password_resets;
 DROP TABLE IF EXISTS audit_log;
 DROP TABLE IF EXISTS website_audits;
 DROP TABLE IF EXISTS advisor_notes;
@@ -42,6 +44,8 @@ CREATE TABLE users (
   advisor_id INT UNSIGNED NULL,
   claimed_at TIMESTAMP NULL,
   password_changed_at TIMESTAMP NULL,
+  claim_code_hash CHAR(64) NULL,
+  last_reminder_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
   UNIQUE KEY uq_users_advisor_code (advisor_code),
@@ -150,6 +154,8 @@ CREATE TABLE website_audits (
   payment_detected TINYINT(1) NULL,
   social_links_found VARCHAR(255) NULL,
   response_time_ms INT UNSIGNED NULL,
+  contact_detected TINYINT(1) NULL,
+  policy_detected TINYINT(1) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_audits_user_created (user_id, created_at),
   CONSTRAINT fk_audits_user
@@ -170,6 +176,38 @@ CREATE TABLE audit_log (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_audit_created (created_at),
   KEY idx_audit_type (event_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One-time password reset tokens. Only a SHA-256 hash of the token is stored.
+CREATE TABLE password_resets (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  issued_by INT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_reset_token (token_hash),
+  KEY idx_reset_user (user_id),
+  CONSTRAINT fk_reset_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Read-only share links for a business's latest report. Only a hash of the token is stored.
+CREATE TABLE report_shares (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  created_by INT UNSIGNED NULL,
+  expires_at DATETIME NOT NULL,
+  revoked_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_share_token (token_hash),
+  KEY idx_share_user (user_id),
+  CONSTRAINT fk_share_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed categories

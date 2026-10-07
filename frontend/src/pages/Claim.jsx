@@ -6,6 +6,7 @@ export default function Claim() {
   const { claim, loading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [claimCode, setClaimCode] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -13,7 +14,7 @@ export default function Claim() {
     e.preventDefault();
     setError('');
     try {
-      await claim(email, password);
+      await claim(email, password, claimCode);
       navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Could not claim this account');
@@ -25,7 +26,7 @@ export default function Claim() {
       <h1 className="mb-2 font-display text-3xl font-bold">Set up your account</h1>
       <p className="mb-8 text-sm text-muted">
         If an advisor ran your digital maturity assessment with you, your account is already
-        set up under the email they used — set a password here to log in and access it yourself.
+        set up under the email they used. Enter the claim code they gave you and choose a password to log in and access it yourself.
       </p>
 
       <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-border bg-surface p-6">
@@ -44,6 +45,20 @@ export default function Claim() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full rounded-xl border border-border bg-ink px-3 py-2.5 text-sm text-text outline-none focus:border-amber"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-mono uppercase tracking-wide text-muted">
+            Claim code from your advisor
+          </span>
+          <input
+            required
+            value={claimCode}
+            onChange={(e) => setClaimCode(e.target.value.toUpperCase())}
+            placeholder="ABCD-2345"
+            autoComplete="off"
+            maxLength={12}
+            className="w-full rounded-xl border border-border bg-ink px-3 py-2.5 font-mono text-sm uppercase tracking-wider text-text outline-none focus:border-amber"
           />
         </label>
         <label className="block">

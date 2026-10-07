@@ -1,6 +1,12 @@
 const express = require('express');
 const { query, pool } = require('../db');
 const { authenticate } = require('../middleware/auth');
+const { canAccessBusinessData } = require('../services/access');
+
+// A sector comparison needs enough businesses to mean something.
+const MIN_BENCHMARK_SAMPLE = 3;
+const SMALL_SAMPLE_BELOW = 10;
+const DEMO_EMAIL_SUFFIX = '@demo.biztransform.test';
 
 const router = express.Router();
 
@@ -236,7 +242,7 @@ router.get('/assessments/:id', authenticate, async (req, res, next) => {
     }
 
     const assessment = assessments[0];
-    if (assessment.user_id !== req.user.id && req.user.role !== 'advisor') {
+    if (!(await canAccessBusinessData(req.user, assessment.user_id))) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
@@ -297,7 +303,7 @@ router.get('/assessments/:id/benchmark', authenticate, async (req, res, next) =>
     }
 
     const assessment = assessments[0];
-    if (assessment.user_id !== req.user.id && req.user.role !== 'advisor') {
+    if (!(await canAccessBusinessData(req.user, assessment.user_id))) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
@@ -313,8 +319,9 @@ router.get('/assessments/:id/benchmark', authenticate, async (req, res, next) =>
 
     // Latest assessment per business within this sector.
     const latest = await query(
-      `SELECT a1.id, a1.total_score
+      `SELECT a1.id, a1.total_score, u.email
        FROM assessments a1
+       JOIN users u ON u.id = a1.user_id
        WHERE a1.sector_id = :sector_id
          AND a1.id = (
            SELECT MAX(a2.id) FROM assessments a2
@@ -324,7 +331,7 @@ router.get('/assessments/:id/benchmark', authenticate, async (req, res, next) =>
     );
 
     const sampleSize = latest.length;
-    if (sampleSize < 2) {
+    if (sampleSize < MIN_BENCHMARK_SAMPLE) {
       return res.json({
         sector_label: assessment.sector_label,
         sample_size: sampleSize,
@@ -359,6 +366,9 @@ router.get('/assessments/:id/benchmark', authenticate, async (req, res, next) =>
     return res.json({
       sector_label: assessment.sector_label,
       sample_size: sampleSize,
+      small_sample: sampleSize < SMALL_SAMPLE_BELOW,
+      includes_demo: latest.some((r) => String(r.email).endsWith(DEMO_EMAIL_SUFFIX)),
+      min_sample: MIN_BENCHMARK_SAMPLE,
       overall_avg_score: overallAvgScore,
       categories: categoryRows.map((r) => ({
         key: r.category_key,
@@ -374,5 +384,6 @@ router.get('/assessments/:id/benchmark', authenticate, async (req, res, next) =>
 
 module.exports = router;
 module.exports.resolveSectorId = resolveSectorId;
+module.exports.buildCategoryBreakdown = buildCategoryBreakdown;
 module.exports.getGroupedQuestions = getGroupedQuestions;
 module.exports.submitAssessmentForUser = submitAssessmentForUser;

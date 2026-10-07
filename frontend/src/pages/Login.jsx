@@ -56,6 +56,11 @@ export default function Login() {
             className="w-full rounded-xl border border-border bg-ink px-3 py-2.5 text-sm text-text outline-none focus:border-amber"
           />
         </label>
+        <p className="-mt-1 text-right text-xs">
+          <Link to="/forgot-password" className="text-teal hover:underline">
+            Forgot password?
+          </Link>
+        </p>
         <button
           type="submit"
           disabled={loading}

@@ -9,7 +9,6 @@ import {
   Check,
   UserPlus,
   Users,
-  Globe,
   TrendingUp,
 } from 'lucide-react';
 import api from '../api/client';
@@ -46,7 +45,10 @@ export default function AdvisorPortal() {
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState([]);
   const [impact, setImpact] = useState(null);
-  const [scope, setScope] = useState('mine');
+  // Advisors only ever see their own clients; there is no "all businesses" view.
+  const scope = 'mine';
+  const [newClient, setNewClient] = useState(null);
+  const [newClientCopied, setNewClientCopied] = useState(false);
   const [sortAsc, setSortAsc] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -63,13 +65,11 @@ export default function AdvisorPortal() {
   const [clientForm, setClientForm] = useState({ name: '', email: '', business_name: '', sector: '' });
   const [addingClient, setAddingClient] = useState(false);
 
-  const loadBusinesses = async (nextScope) => {
+  const loadBusinesses = async () => {
     setLoading(true);
     setError('');
     try {
-      const { data } = await api.get('/admin/businesses', {
-        params: nextScope === 'all' ? { all: 1 } : {},
-      });
+      const { data } = await api.get('/admin/businesses');
       setBusinesses(data.businesses || []);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load businesses');
@@ -78,11 +78,9 @@ export default function AdvisorPortal() {
     }
   };
 
-  const loadImpact = async (nextScope) => {
+  const loadImpact = async () => {
     try {
-      const { data } = await api.get('/admin/impact', {
-        params: nextScope === 'all' ? { all: 1 } : {},
-      });
+      const { data } = await api.get('/admin/impact');
       setImpact(data);
     } catch {
       setImpact(null);
@@ -90,8 +88,8 @@ export default function AdvisorPortal() {
   };
 
   useEffect(() => {
-    loadBusinesses(scope);
-    loadImpact(scope);
+    loadBusinesses();
+    loadImpact();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope]);
 
@@ -159,7 +157,7 @@ export default function AdvisorPortal() {
       setBusinesses((prev) =>
         prev.map((b) => (b.id === businessId ? { ...b, follow_up_status: status || null } : b))
       );
-      loadImpact(scope);
+      loadImpact();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update status');
     } finally {
@@ -212,7 +210,8 @@ export default function AdvisorPortal() {
       const { data } = await api.post('/admin/businesses', clientForm);
       setShowAddClient(false);
       setClientForm({ name: '', email: '', business_name: '', sector: '' });
-      navigate(`/advisor/businesses/${data.id}/assessment`);
+      setNewClientCopied(false);
+      setNewClient(data); // shows the claim code before moving on to the assessment
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add client');
     } finally {
@@ -325,6 +324,44 @@ export default function AdvisorPortal() {
         </div>
       )}
 
+      {newClient && (
+        <div className="mb-6 rounded-xl border border-teal/40 bg-teal/5 p-4">
+          <p className="mb-1 text-sm text-text">
+            Account created for <span className="font-semibold">{newClient.business_name || newClient.name}</span>.
+          </p>
+          <p className="mb-3 text-xs text-muted">
+            To set their own password later, your client uses the Claim page with their email and this one-time code. It
+            is shown only now — write it down or copy it. (You can always make a new one from their page.)
+          </p>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="rounded-lg border border-amber/40 bg-amber/10 px-3 py-1.5 font-mono text-lg tracking-widest text-amber">
+              {newClient.claim_code}
+            </span>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(newClient.claim_code);
+                  setNewClientCopied(true);
+                } catch {
+                  // Clipboard may be blocked; the code is visible to copy by hand.
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted transition hover:text-text"
+            >
+              {newClientCopied ? <Check size={12} /> : <Copy size={12} />} {newClientCopied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(`/advisor/businesses/${newClient.id}/assessment`)}
+            className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-ink transition hover:bg-amber/90"
+          >
+            Run their assessment now
+          </button>
+        </div>
+      )}
+
       {showAddClient && (
         <form
           onSubmit={submitAddClient}
@@ -398,26 +435,9 @@ export default function AdvisorPortal() {
       )}
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex rounded-xl border border-border p-1">
-          <button
-            type="button"
-            onClick={() => setScope('mine')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition ${
-              scope === 'mine' ? 'bg-amber text-ink' : 'text-muted hover:text-text'
-            }`}
-          >
-            <Users size={14} /> My clients
-          </button>
-          <button
-            type="button"
-            onClick={() => setScope('all')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition ${
-              scope === 'all' ? 'bg-amber text-ink' : 'text-muted hover:text-text'
-            }`}
-          >
-            <Globe size={14} /> All businesses
-          </button>
-        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm text-text">
+          <Users size={14} className="text-teal" /> My clients
+        </span>
         <div className="relative">
           <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input

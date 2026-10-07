@@ -21,6 +21,8 @@ function serializeAudit(row) {
     has_title: row.has_title == null ? null : Boolean(row.has_title),
     has_meta_description: row.has_meta_description == null ? null : Boolean(row.has_meta_description),
     payment_detected: row.payment_detected == null ? null : Boolean(row.payment_detected),
+    contact_detected: row.contact_detected == null ? null : Boolean(row.contact_detected),
+    policy_detected: row.policy_detected == null ? null : Boolean(row.policy_detected),
     social_links_found: social,
     response_time_ms: row.response_time_ms,
     created_at: row.created_at,
@@ -39,10 +41,12 @@ async function saveAudit(userId, result) {
   const insertResult = await query(
     `INSERT INTO website_audits
        (user_id, url, status, error_message, https, mobile_friendly, has_title,
-        has_meta_description, payment_detected, social_links_found, response_time_ms)
+        has_meta_description, payment_detected, contact_detected, policy_detected,
+        social_links_found, response_time_ms)
      VALUES
        (:user_id, :url, :status, :error_message, :https, :mobile_friendly, :has_title,
-        :has_meta_description, :payment_detected, :social_links_found, :response_time_ms)`,
+        :has_meta_description, :payment_detected, :contact_detected, :policy_detected,
+        :social_links_found, :response_time_ms)`,
     {
       user_id: userId,
       url: result.url,
@@ -54,6 +58,8 @@ async function saveAudit(userId, result) {
       has_meta_description:
         result.has_meta_description == null ? null : result.has_meta_description ? 1 : 0,
       payment_detected: result.payment_detected == null ? null : result.payment_detected ? 1 : 0,
+      contact_detected: result.contact_detected == null ? null : result.contact_detected ? 1 : 0,
+      policy_detected: result.policy_detected == null ? null : result.policy_detected ? 1 : 0,
       social_links_found: (result.social_links_found || []).join(','),
       response_time_ms: result.response_time_ms,
     }

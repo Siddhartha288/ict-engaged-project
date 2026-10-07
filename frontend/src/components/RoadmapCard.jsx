@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Clock3, ArrowUpRight, ExternalLink, Check, DollarSign } from 'lucide-react';
 import { VendorLink } from './VendorFinder';
+import ActionGuide from './ActionGuide';
 
 function formatAud(value) {
   if (value == null) return null;
@@ -89,6 +90,8 @@ export default function RoadmapCard({ action, onToggleComplete, onUpdateFinancia
           ))}
         </div>
       )}
+
+      <ActionGuide category={action.category} />
 
       {onUpdateFinancials ? (
         <div className="mb-4 grid grid-cols-2 gap-3 rounded-lg border border-border/60 bg-ink/30 p-3">

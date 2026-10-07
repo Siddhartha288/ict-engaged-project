@@ -2,6 +2,7 @@ const express = require('express');
 const { query } = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { generateRoadmap } = require('../services/aiService');
+const { canAccessBusinessData } = require('../services/access');
 
 const router = express.Router({ mergeParams: true });
 
@@ -21,7 +22,7 @@ async function loadAssessmentForUser(assessmentId, user) {
   if (!assessments.length) return { error: { status: 404, message: 'Assessment not found' } };
 
   const assessment = assessments[0];
-  if (assessment.user_id !== user.id && user.role !== 'advisor') {
+  if (!(await canAccessBusinessData(user, assessment.user_id))) {
     return { error: { status: 403, message: 'Insufficient permissions' } };
   }
 

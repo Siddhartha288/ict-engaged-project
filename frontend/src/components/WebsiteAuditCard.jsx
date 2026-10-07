@@ -93,6 +93,8 @@ export default function WebsiteAuditCard({ audit, onRun, running }) {
                 <CheckRow label="Page title" value={audit.has_title} />
                 <CheckRow label="Meta description" value={audit.has_meta_description} />
                 <CheckRow label="Online payment detected" value={audit.payment_detected} />
+                {audit.contact_detected != null && <CheckRow label="Contact details" value={audit.contact_detected} />}
+                {audit.policy_detected != null && <CheckRow label="Privacy / terms page" value={audit.policy_detected} />}
                 <CheckRow
                   label={
                     audit.social_links_found?.length

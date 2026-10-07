@@ -13,6 +13,8 @@ const sectorRoutes = require('./routes/sectors');
 const notesRoutes = require('./routes/notes');
 const auditRoutes = require('./routes/audit');
 const platformRoutes = require('./routes/platform');
+const shareRoutes = require('./routes/share');
+const reminderRoutes = require('./routes/reminders');
 
 const app = express();
 // The host puts a reverse proxy in front of Node; trust its X-Forwarded-For so
@@ -45,6 +47,8 @@ app.use('/api/sectors', sectorRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/platform', platformRoutes);
+app.use('/api/reminders', reminderRoutes);
+app.use('/api', shareRoutes);
 
 const staticDir = path.join(__dirname, 'public');
 if (fs.existsSync(staticDir)) {

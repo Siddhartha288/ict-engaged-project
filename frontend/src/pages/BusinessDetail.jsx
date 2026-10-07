@@ -14,6 +14,8 @@ import api from '../api/client';
 import RadarScoreChart from '../components/RadarScoreChart';
 import RoadmapCard from '../components/RoadmapCard';
 import RoadmapSource from '../components/RoadmapSource';
+import ShareReport from '../components/ShareReport';
+import BenchmarkNote from '../components/BenchmarkNote';
 import WebsiteAuditCard from '../components/WebsiteAuditCard';
 
 const STATUS_OPTIONS = [
@@ -34,6 +36,8 @@ export default function BusinessDetail() {
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [claimCode, setClaimCode] = useState('');
+  const [claimBusy, setClaimBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -147,6 +151,19 @@ export default function BusinessDetail() {
     return <div className="px-4 py-20 text-center font-mono text-sm text-muted">Loading business…</div>;
   }
 
+  const newClaimCode = async () => {
+    setClaimBusy(true);
+    setError('');
+    try {
+      const { data } = await api.post(`/admin/businesses/${id}/claim-code`);
+      setClaimCode(data.claim_code);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not create a claim code');
+    } finally {
+      setClaimBusy(false);
+    }
+  };
+
   if (!business) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center text-sm text-red-300">
@@ -178,6 +195,30 @@ export default function BusinessDetail() {
               </span>
             )}
           </p>
+          {!business.claimed && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+              {claimCode ? (
+                <>
+                  Claim code (shown once — give it to the client):{' '}
+                  <span className="rounded-md border border-amber/40 bg-amber/10 px-2 py-0.5 font-mono text-sm tracking-wider text-amber">
+                    {claimCode}
+                  </span>
+                </>
+              ) : (
+                <>
+                  The client sets their own password on the Claim page using their email and a claim code.
+                  <button
+                    type="button"
+                    onClick={newClaimCode}
+                    disabled={claimBusy}
+                    className="rounded-lg border border-border px-2 py-1 text-text transition hover:border-teal/40 disabled:opacity-50"
+                  >
+                    {claimBusy ? 'Creating…' : 'Get a new claim code'}
+                  </button>
+                </>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex items-end gap-3">
           <Link
@@ -277,11 +318,14 @@ export default function BusinessDetail() {
                         Sector avg: <span className="font-mono text-teal">{benchmark.overall_avg_score}%</span>
                       </span>
                     </div>
+                    <BenchmarkNote benchmark={benchmark} />
                   </div>
                 )}
               </div>
 
               <div className="space-y-6">
+                <ShareReport businessId={business.id} />
+
                 {trendData.length > 1 && (
                   <div className="rounded-xl border border-border bg-surface p-5">
                     <h3 className="mb-4 font-display text-lg font-semibold">Score trend</h3>

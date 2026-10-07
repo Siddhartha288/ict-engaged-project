@@ -87,6 +87,8 @@ function UsersTab() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [demotingId, setDemotingId] = useState(null);
+  const [resetInfo, setResetInfo] = useState(null);
+  const [resetCopied, setResetCopied] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -112,6 +114,20 @@ function UsersTab() {
       setDemotingId(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to change role');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const issueResetLink = async (u) => {
+    setBusyId(u.id);
+    setError('');
+    setResetCopied(false);
+    try {
+      const { data } = await api.post(`/platform/users/${u.id}/reset-link`);
+      setResetInfo({ email: u.email, link: data.link, expires_at: data.expires_at });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not create a reset link');
     } finally {
       setBusyId(null);
     }
@@ -162,6 +178,47 @@ function UsersTab() {
         <span className="font-mono text-xs text-muted">{users.length} shown</span>
       </div>
 
+      {resetInfo && (
+        <div className="mb-4 rounded-xl border border-teal/40 bg-teal/5 p-4">
+          <p className="mb-1 text-sm text-text">
+            One-time reset link for <span className="font-semibold">{resetInfo.email}</span>
+          </p>
+          <p className="mb-2 text-xs text-muted">
+            Send it to them privately. It works once and expires {new Date(resetInfo.expires_at).toLocaleTimeString()}.
+            It is shown only now.
+          </p>
+          <div className="flex gap-2">
+            <input
+              readOnly
+              value={resetInfo.link}
+              onFocus={(e) => e.target.select()}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-ink px-3 py-2 font-mono text-xs outline-none"
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(resetInfo.link);
+                  setResetCopied(true);
+                } catch {
+                  // The link is selectable in the box if the clipboard is blocked.
+                }
+              }}
+              className="shrink-0 rounded-lg border border-teal/40 bg-teal/10 px-3 py-2 text-xs text-teal transition hover:bg-teal/20"
+            >
+              {resetCopied ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setResetInfo(null)}
+              className="shrink-0 px-2 text-xs text-muted underline hover:text-text"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
           {error}
@@ -179,12 +236,13 @@ function UsersTab() {
                 <th className="px-4 py-3 font-medium">Joined</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Access</th>
+                <th className="px-4 py-3 font-medium">Password</th>
               </tr>
             </thead>
             <tbody>
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted">
+                  <td colSpan={7} className="px-4 py-10 text-center text-muted">
                     No users match.
                   </td>
                 </tr>
@@ -259,6 +317,20 @@ function UsersTab() {
                         className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition hover:border-red-500/40 hover:text-red-300"
                       >
                         Remove admin
+                      </button>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {u.id === me?.id ? (
+                      <span className="text-xs text-muted">—</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={busyId === u.id}
+                        onClick={() => issueResetLink(u)}
+                        className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition hover:border-teal/40 hover:text-text disabled:opacity-40"
+                      >
+                        Reset link
                       </button>
                     )}
                   </td>
@@ -403,8 +475,27 @@ const EVENT_LABELS = {
   user_active_changed: 'Account (de)activated',
   question_edited: 'Question edited',
   admin_created: 'Admin created (CLI)',
+  password_reset_requested: 'Password reset requested',
+  password_reset_completed: 'Password reset completed',
+  reset_link_issued: 'Reset link issued by admin',
+  claim_failed: 'Claim attempt failed',
+  account_claimed: 'Account claimed',
+  claim_code_issued: 'Claim code issued',
+  advisor_linked: 'Business linked to advisor',
+  advisor_unlinked: 'Business unlinked from advisor',
+  report_shared: 'Report share link created',
+  account_deleted: 'Account deleted',
+  account_delete_failed: 'Account deletion failed',
+  reminder_sent: 'Reminder emailed',
 };
-const WARN_EVENTS = new Set(['login_failed', 'login_blocked', 'login_deactivated', 'password_change_failed']);
+const WARN_EVENTS = new Set([
+  'login_failed',
+  'login_blocked',
+  'login_deactivated',
+  'password_change_failed',
+  'claim_failed',
+  'account_delete_failed',
+]);
 
 function ActivityTab() {
   const [events, setEvents] = useState([]);

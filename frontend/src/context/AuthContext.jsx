@@ -45,10 +45,10 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const claim = async (email, password) => {
+  const claim = async (email, password, claim_code) => {
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/claim', { email, password });
+      const { data } = await api.post('/auth/claim', { email, password, claim_code });
       setToken(data.token);
       setUser(data.user);
       return data.user;
@@ -63,6 +63,12 @@ export function AuthProvider({ children }) {
     const { data } = await api.post('/auth/change-password', { current_password, new_password });
     setToken(data.token);
     setUser(data.user);
+  };
+
+  // Only deletes on the server; the caller navigates away and then calls logout(),
+  // so a protected page doesn't redirect to the login screen mid-way.
+  const deleteAccount = async (password) => {
+    await api.delete('/auth/account', { data: { password } });
   };
 
   const logout = () => {
@@ -80,6 +86,8 @@ export function AuthProvider({ children }) {
       register,
       claim,
       changePassword,
+      updateUser: setUser,
+      deleteAccount,
       logout,
     }),
     [user, token, loading]

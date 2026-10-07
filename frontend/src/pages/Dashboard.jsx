@@ -15,6 +15,9 @@ import { useAuth } from '../context/AuthContext';
 import RadarScoreChart from '../components/RadarScoreChart';
 import RoadmapCard from '../components/RoadmapCard';
 import RoadmapSource from '../components/RoadmapSource';
+import ReminderBanner from '../components/ReminderBanner';
+import ShareReport from '../components/ShareReport';
+import BenchmarkNote from '../components/BenchmarkNote';
 import VendorFinder from '../components/VendorFinder';
 import WebsiteAuditCard from '../components/WebsiteAuditCard';
 
@@ -217,6 +220,8 @@ export default function Dashboard() {
         </div>
       )}
 
+      <ReminderBanner />
+
       <div className="mb-6 flex flex-wrap gap-2">
         {assessments.map((a) => (
           <button
@@ -295,11 +300,12 @@ export default function Dashboard() {
                     );
                   })}
                 </div>
+                <BenchmarkNote benchmark={benchmark} />
               </div>
             )}
             {benchmark && benchmark.insufficient_data && (
               <p className="mt-5 border-t border-border pt-4 text-xs text-muted">
-                Not enough other businesses in your sector yet to show a benchmark.
+                Not enough other businesses in your sector yet (we need at least 3) to show a meaningful benchmark.
               </p>
             )}
           </div>
@@ -424,6 +430,8 @@ export default function Dashboard() {
                 </p>
               )}
             </div>
+
+            <ShareReport />
 
             <WebsiteAuditCard audit={audit} onRun={runAudit} running={auditRunning} />
 

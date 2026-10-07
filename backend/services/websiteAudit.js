@@ -195,6 +195,11 @@ const PAYMENT_PATTERNS = [
   /woocommerce/i,
 ];
 
+// A phone/email link, or a link whose address mentions "contact": a customer can reach the business.
+const CONTACT_PATTERNS = [/href=["'](?:tel|mailto):/i, /href=["'][^"']*contact/i];
+// A visible privacy or terms page: a basic trust signal, and a legal expectation when collecting details.
+const POLICY_PATTERNS = [/href=["'][^"']*(?:privacy|terms)/i, />\s*(?:privacy policy|terms (?:of|&amp;|and))/i];
+
 function analyzeHtml(html) {
   const hasViewport = /<meta[^>]+name=["']viewport["']/i.test(html);
   const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
@@ -202,8 +207,12 @@ function analyzeHtml(html) {
   const hasMetaDescription = /<meta[^>]+name=["']description["'][^>]+content=["'][^"']+["']/i.test(html);
   const socialFound = SOCIAL_PATTERNS.filter(([, re]) => re.test(html)).map(([name]) => name);
   const paymentDetected = PAYMENT_PATTERNS.some((re) => re.test(html));
+  const contactDetected = CONTACT_PATTERNS.some((re) => re.test(html));
+  const policyDetected = POLICY_PATTERNS.some((re) => re.test(html));
 
   return {
+    contact_detected: contactDetected,
+    policy_detected: policyDetected,
     mobile_friendly: hasViewport,
     has_title: hasTitle,
     has_meta_description: hasMetaDescription,
@@ -252,8 +261,10 @@ async function runWebsiteAudit(url) {
       has_meta_description: null,
       social_links_found: [],
       payment_detected: null,
+      contact_detected: null,
+      policy_detected: null,
     };
   }
 }
 
-module.exports = { runWebsiteAudit, normalizeUrl };
+module.exports = { runWebsiteAudit, normalizeUrl, analyzeHtml };

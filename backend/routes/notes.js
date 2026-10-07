@@ -1,13 +1,9 @@
 const express = require('express');
 const { query } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { canAccessBusinessData, advisorOwnsBusiness } = require('../services/access');
 
 const router = express.Router();
-
-function canAccessBusiness(user, businessId) {
-  if (user.role === 'advisor') return true;
-  return user.role === 'business' && user.id === businessId;
-}
 
 router.get('/:businessId', authenticate, async (req, res, next) => {
   try {
@@ -15,7 +11,7 @@ router.get('/:businessId', authenticate, async (req, res, next) => {
     if (!Number.isInteger(businessId) || businessId < 1) {
       return res.status(400).json({ message: 'Invalid business id' });
     }
-    if (!canAccessBusiness(req.user, businessId)) {
+    if (!(await canAccessBusinessData(req.user, businessId))) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
@@ -49,11 +45,8 @@ router.post('/:businessId', authenticate, requireRole('advisor'), async (req, re
       return res.status(400).json({ message: 'Note is too long (max 2000 characters)' });
     }
 
-    const businessRows = await query(
-      "SELECT id FROM users WHERE id = :id AND role = 'business' LIMIT 1",
-      { id: businessId }
-    );
-    if (!businessRows.length) {
+    // Advisors can only write notes about their own clients.
+    if (!(await advisorOwnsBusiness(req.user.id, businessId))) {
       return res.status(404).json({ message: 'Business not found' });
     }
 

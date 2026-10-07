@@ -64,6 +64,17 @@
 }
 
 @media print {
+  /* Print on white regardless of the on-screen theme. */
+  :root {
+    --color-ink: #ffffff;
+    --color-surface: #ffffff;
+    --color-border: #d4d4de;
+    --color-amber: #b45f00;
+    --color-teal: #0f7a70;
+    --color-text: #16161f;
+    --color-muted: #4a4a5c;
+  }
+
   header,
   footer,
   .no-print {

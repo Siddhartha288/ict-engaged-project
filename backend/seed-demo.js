@@ -194,8 +194,8 @@ async function main() {
       await query(
         `INSERT INTO website_audits
            (user_id, url, status, https, mobile_friendly, has_title, has_meta_description,
-            payment_detected, social_links_found, response_time_ms, created_at)
-         VALUES (:user_id, :url, 'ok', :https, :mobile, :title, :meta, :payment, :social, :ms, :when)`,
+            payment_detected, contact_detected, policy_detected, social_links_found, response_time_ms, created_at)
+         VALUES (:user_id, :url, 'ok', :https, :mobile, :title, :meta, :payment, :contact, :policy, :social, :ms, :when)`,
         {
           user_id: reg.user.id,
           url: `https://${slug(name)}.example`,
@@ -204,6 +204,8 @@ async function main() {
           title: 1,
           meta: good > 0.45 ? 1 : 0,
           payment: good > 0.6 ? 1 : 0,
+          contact: good > 0.25 ? 1 : 0,
+          policy: good > 0.55 ? 1 : 0,
           social: ['facebook', 'instagram', 'linkedin'].filter(() => rand() > 0.4).join(','),
           ms: Math.round(300 + rand() * 1800),
           when: new Date(Date.now() - Math.floor(rand() * 20) * DAY),
@@ -241,7 +243,7 @@ async function main() {
   }
 
   // ---- One client the advisor created who hasn't claimed their account ----
-  await call('POST', '/admin/businesses', {
+  const walkIn = await call('POST', '/admin/businesses', {
     token: advisor.token,
     body: {
       name: 'Walk-in Owner',
@@ -258,6 +260,7 @@ async function main() {
   console.log(`\nDemo advisor login : ${advisorEmail}`);
   console.log(`Demo business login: ${emailFor(BUSINESSES[0][0])}`);
   console.log(`Shared demo password: ${DEMO_PASSWORD}`);
+  console.log(`Unclaimed client for trying the Claim page: ${emailFor('Sunrise Florist')}, claim code ${walkIn.claim_code}`);
   console.log('\nRemove it all later with: node seed-demo.js --remove');
 }
 

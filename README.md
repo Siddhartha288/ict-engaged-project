@@ -13,19 +13,24 @@ Built for ICT313 (aligned to UN SDG 9: Industry, Innovation and Infrastructure).
 - Take the assessment and see an overall score, level, and per-category radar chart (Online Presence, Digital Payments, Marketing, Operations, Data Use).
 - Compare against other businesses in the same sector (benchmark).
 - Get a prioritised roadmap, mark actions done, and record each action's estimated cost and expected benefit (projected ROI).
-- Run an automated **website audit** (HTTPS, mobile-friendliness, title/meta description, social links, payment-script detection, response time) — no self-reporting involved.
-- Read notes left by their advisor.
+- Run an automated **website audit** (HTTPS, mobile-friendliness, title/meta description, social links, payment-script detection, contact details, privacy/terms link, response time) — no self-reporting involved.
+- Read notes left by their advisor, and link or unlink an advisor themselves (Account page) — no advisor sees a business's data until it is linked.
+- Step-by-step "How to do this" checklists on each roadmap action, plus in-app reminders to re-assess and to finish a stale roadmap.
+- Create a read-only **share link** to the latest report (14-day expiry, revocable; shows no owner details or cost figures).
+- Sector benchmarks are only shown with at least 3 businesses, and are labelled when the sample is small or includes demo data.
+- Forgot-password flow, change password, and delete their own account (with all linked data).
 
 **Advisors**
-- Get a personal invite code/link; businesses that register with it join their caseload ("My clients" vs "All businesses").
-- Add a client and run the assessment with them live; the client can later claim the account and set a password.
+- Get a personal invite code/link; businesses that register with it (or enter the code later) join their caseload. **Advisors only ever see their own clients.**
+- Add a client and run the assessment with them live; the client later claims the account with their email plus a one-time **claim code** the advisor hands over (shown once, stored hashed).
 - Search/filter the caseload, tag follow-up status, leave notes, export CSV.
 - View a client's detail page (history, trend, benchmark, roadmap, audit) and a printable one-page report.
 - See cohort impact: caseload size, average score, and average improvement from first to latest assessment.
 
 **Admins**
 - Site-wide stats; search users; activate/deactivate accounts; promote/demote admins.
-- Activity log: failed logins, lockouts, password changes and every admin action, with time and IP.
+- Activity log: failed logins, lockouts, password changes and resets, claim attempts, advisor links, share links, deletions and every admin action, with time and IP.
+- Issue a one-time **password reset link** for a locked-out user (works without email).
 - Edit question wording and roadmap tips per sector (wording only — adding or removing questions would invalidate past scoring).
 
 ## Roles
@@ -110,7 +115,7 @@ Gives benchmarking, progress tracking and the advisor cohort report real numbers
 ## Testing and linting
 
 ```bash
-cd backend && npm test        # 56 tests: auth, RBAC, scoring, roadmap, benchmark, advisor flows, admin, security, AI provider, SSRF
+cd backend && npm test        # 74 tests: auth, RBAC, scoring, roadmap, benchmark, advisor flows, admin, security, AI provider, SSRF
 cd frontend && npm run lint
 ```
 
@@ -126,7 +131,7 @@ cp -r frontend/dist backend/public      # served by Express, with SPA fallback
 cd backend && npm install --omit=dev && node server.js
 ```
 
-The live site runs under pm2 behind the host's reverse proxy. Database changes on a live system should be **additive** (`ALTER TABLE ... ADD COLUMN`, `CREATE TABLE`) — don't re-run `db:setup`, which would wipe real users. When upgrading an existing database, run `node migrate-security.js` (idempotent; adds the `audit_log` table and `users.password_changed_at`) **before** restarting the server.
+The live site runs under pm2 behind the host's reverse proxy. Database changes on a live system should be **additive** (`ALTER TABLE ... ADD COLUMN`, `CREATE TABLE`) — don't re-run `db:setup`, which would wipe real users. When upgrading an existing database, run the migrations in order **before** restarting the server (both are idempotent and never touch existing rows): `node migrate-security.js` (`audit_log`, `users.password_changed_at`), then `node migrate-realism.js` (claim codes, reminders, password resets, share links, extra audit checks).
 
 ## API overview
 
@@ -134,15 +139,17 @@ All routes are under `/api`. "Auth" means a valid, active user; role requirement
 
 | Area | Routes | Access |
 |------|--------|--------|
-| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/claim` | Public |
-| Account | `POST /auth/change-password` | Auth |
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/claim` (email + claim code), `POST /auth/forgot-password`, `POST /auth/reset-password` | Public |
+| Account | `POST /auth/change-password`, `DELETE /auth/account`; business: `GET/POST/DELETE /auth/advisor` | Auth |
+| Reminders | `GET /reminders` | Business |
+| Share | `POST/GET /share`, `DELETE /share/:id` (owner, or the owning advisor); `GET /shared/:token` | Auth / public read-only |
 | Sectors | `GET /sectors` | Public |
-| Assessment | `GET /questions`, `POST /assessments`, `GET /assessments`, `GET /assessments/:id`, `GET /assessments/:id/benchmark` | Auth (owner or advisor) |
-| Roadmap | `POST/GET /assessments/:id/roadmap`, `PATCH /assessments/:id/roadmap/actions/:index` | Auth (owner or advisor) |
+| Assessment | `GET /questions`, `POST /assessments`, `GET /assessments`, `GET /assessments/:id`, `GET /assessments/:id/benchmark` | Auth (owner or their linked advisor) |
+| Roadmap | `POST/GET /assessments/:id/roadmap`, `PATCH /assessments/:id/roadmap/actions/:index` | Auth (owner or their linked advisor) |
 | Website audit | `POST /audit`, `GET /audit` | Business |
-| Notes | `GET /notes/:businessId` (owner or advisor), `POST /notes/:businessId` | Advisor to post |
-| Advisor | `GET/POST /admin/businesses`, `GET /admin/businesses/:id`, `…/:id/questions`, `…/:id/assessments`, `PATCH …/:id/status`, `GET /admin/impact` | Advisor |
-| Admin | `GET /platform/stats`, `GET /platform/users`, `PATCH /platform/users/:id/active`, `PATCH /platform/users/:id/role`, `GET /platform/questions`, `PATCH /platform/questions/:id` | Admin |
+| Notes | `GET /notes/:businessId` (owner or their linked advisor), `POST /notes/:businessId` | Linked advisor to post |
+| Advisor | `GET/POST /admin/businesses`, `GET /admin/businesses/:id`, `…/:id/questions`, `…/:id/assessments`, `POST …/:id/claim-code`, `PATCH …/:id/status`, `GET /admin/impact` (own clients only) | Advisor |
+| Admin | `GET /platform/stats`, `GET /platform/users`, `PATCH /platform/users/:id/active`, `PATCH /platform/users/:id/role`, `POST /platform/users/:id/reset-link`, `GET /platform/activity`, `GET /platform/questions`, `PATCH /platform/questions/:id` | Admin |
 
 ## Scoring
 
@@ -163,14 +170,15 @@ Each category score is the percentage of "Yes" answers; the overall score is the
 - Admins cannot self-register, cannot deactivate themselves, and cannot change their own role (so an admin always remains).
 - **Failed-login logging and rate limiting.** Failed logins, lockouts, password changes and admin actions are recorded in the `audit_log` table (never the password) and shown to admins on the Activity tab. After 8 failed attempts on one account, or 30 from one IP, within 15 minutes, login returns `429` with a `Retry-After` header; a success resets the account counter. The counters are in memory, so they reset when the server restarts, and they assume one server process.
 - **Change password** requires the current password, and ends every session issued before the change (the browser doing the change gets a fresh token). Passwords must be at least 8 characters.
-- A **privacy notice** (`/privacy`, linked from the footer and registration) describes what is collected and who can see it.
+- **Advisors are scoped to their own clients.** A business's data (assessments, roadmaps, notes, website checks) is visible only to that business and the advisor it is linked to; anything else returns "not found". A business controls its own link on the Account page.
+- **Claim codes, reset tokens and share tokens are random (256 bits for tokens) and stored only as SHA-256 hashes.** Reset links expire after an hour and work once; share links expire after 14 days and can be revoked; claim and reset attempts are rate-limited and audited. A password reset also ends older sessions and clears a login lockout.
+- A **privacy notice** (`/privacy`) and **terms of use** (`/terms`), linked from the footer and registration, describe what is collected, who can see it and what to expect.
 - The website audit fetches user-supplied URLs, so it is hardened against SSRF: http(s) only, public IPs only (loopback, private ranges and cloud-metadata addresses are refused), every redirect hop re-validated, with response-size and time limits.
 
 ## Known limitations
 
-- No email, so there is no "forgot password" reset or email notification. A user who forgets their password needs an admin or the project team to reset it directly in the database.
-- Advisor access is broad: any advisor account can view any business (assessments, roadmaps, website checks, notes), and anyone can register as an advisor. Restricting advisors to their own caseload would be the next hardening step. The privacy notice says so.
-- Claiming an advisor-created account needs only the client's email address (there is no email verification), so an advisor should tell the client to claim it promptly.
+- **Email is optional and off by default.** Set `RESEND_API_KEY` and `EMAIL_FROM` to send password-reset emails and reminder emails (`node send-reminders.js`, run daily from a scheduler; `--dry-run` lists who is due). Without them nothing is emailed: admins issue reset links, and reminders appear in the dashboard. On Resend's free plan without a verified domain you can only email your own address. Email addresses are not verified at registration.
+- Anyone can register as an advisor, but an advisor sees no business until that business links to them or they add the client themselves.
 - Login rate limiting is in memory and per process (see Security notes).
 - On the live site no AI key is configured, so roadmaps use the rule-based generator. The AI path is implemented and unit-tested against a stubbed network, but the Gemini free tier is rate-limited (and Google may use free-tier prompts to improve its products), so any AI failure silently falls back to the rule-based roadmap.
 - Scope versus the ICT313 proposal: three roles are implemented (business, advisor, admin). The proposal's Employee, Customer, and Supplier roles, and its operations/ROI-analytics workflows beyond the roadmap, are not built.
@@ -184,12 +192,15 @@ backend/
   schema.sql              tables + sector/category seed (destructive)
   seed-questions.js       the 135 sector questions and tips
   create-admin.js         create/promote an admin
-  migrate-security.js     additive, idempotent migration for existing databases
+  migrate-security.js     additive, idempotent migration (audit log, password_changed_at)
+  migrate-realism.js      additive, idempotent migration (claim codes, resets, share links, reminders)
+  send-reminders.js       emails businesses that have gone quiet (needs email configured)
+  ai-check.js             checks an AI key and writes a sample roadmap (npm run ai:check)
   seed-demo.js            labelled demo data (--remove to delete)
-  routes/                 auth, assessments, roadmap, admin (advisor), platform (admin), notes, audit, sectors
+  routes/                 auth, assessments, roadmap, admin (advisor), platform (admin), notes, audit, sectors, share, reminders
   middleware/             auth.js (authentication + role checks), rateLimit.js (login throttling)
-  services/               aiService.js, websiteAudit.js, resourceLinks.js, auditLog.js
-  test/                   API and SSRF tests
+  services/               aiService.js, websiteAudit.js, resourceLinks.js, auditLog.js, access.js, tokens.js, email.js, reminders.js, passwordReset.js
+  test/                   API, security, AI, email, advisor-scoping/share/reset/reminder and SSRF tests
 frontend/
   src/pages/              Landing, Login, Register, Claim, Assessment, Dashboard,
                           AdvisorPortal, BusinessDetail, BusinessReport, AdvisorRunAssessment,

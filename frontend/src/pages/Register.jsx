@@ -191,7 +191,11 @@ export default function Register() {
             <Link to="/privacy" target="_blank" className="text-teal hover:underline">
               privacy notice
             </Link>{' '}
-            and agree to my details being used as it describes.
+            and{' '}
+            <Link to="/terms" target="_blank" className="text-teal hover:underline">
+              terms of use
+            </Link>
+            , and agree to my details being used as the privacy notice describes.
           </span>
         </label>
 

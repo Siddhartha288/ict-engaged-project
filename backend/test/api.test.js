@@ -225,18 +225,26 @@ describe('roadmap', () => {
 });
 
 describe('sector benchmarking', () => {
-  it('needs at least two businesses, then averages them', async () => {
+  it('needs at least three businesses, then averages them and flags a small sample', async () => {
     const a = await register({ sector: 'education' });
     const first = await submitAssessment(a.token, () => 1);
-    const alone = await request('GET', `/assessments/${first.body.id}/benchmark`, { token: a.token });
-    assert.equal(alone.body.insufficient_data, true);
+    const bench = () => request('GET', `/assessments/${first.body.id}/benchmark`, { token: a.token });
+    assert.equal((await bench()).body.insufficient_data, true);
 
     const b = await register({ sector: 'education' });
     await submitAssessment(b.token, () => 0);
-    const both = await request('GET', `/assessments/${first.body.id}/benchmark`, { token: a.token });
-    assert.equal(both.body.insufficient_data, false);
-    assert.equal(both.body.sample_size, 2);
-    assert.equal(both.body.overall_avg_score, 50);
+    const two = await bench();
+    assert.equal(two.body.insufficient_data, true, 'two businesses is not enough to compare');
+    assert.equal(two.body.sample_size, 2);
+
+    const c = await register({ sector: 'education' });
+    await submitAssessment(c.token, () => 0);
+    const three = await bench();
+    assert.equal(three.body.insufficient_data, false);
+    assert.equal(three.body.sample_size, 3);
+    assert.equal(three.body.overall_avg_score, 33);
+    assert.equal(three.body.small_sample, true, 'fewer than 10 businesses is flagged as indicative only');
+    assert.equal(three.body.includes_demo, false);
   });
 });
 
@@ -255,9 +263,10 @@ describe('advisor caseload, sessions and the claim flow', () => {
     const mine = await request('GET', '/admin/businesses', { token: advisor.token });
     assert.deepEqual(mine.body.businesses.map((b) => b.email), [linked.email]);
 
+    // There is no "all businesses" view any more: an advisor only ever sees their own clients.
     const all = await request('GET', '/admin/businesses?all=1', { token: advisor.token });
-    const emails = all.body.businesses.map((b) => b.email);
-    assert.ok(emails.includes(linked.email) && emails.includes(loose.email));
+    assert.deepEqual(all.body.businesses.map((b) => b.email), [linked.email]);
+    assert.ok(!all.body.businesses.some((b) => b.email === loose.email));
   });
 
   it('lets an advisor run an assessment for a client who later claims the account', async () => {
@@ -283,12 +292,17 @@ describe('advisor caseload, sessions and the claim flow', () => {
     assert.equal(submitted.status, 201);
     assert.equal(submitted.body.total_score, 100);
 
-    const claimed = await request('POST', '/auth/claim', { body: { email, password: PASSWORD } });
+    // The email alone is no longer enough: the advisor hands the client a claim code.
+    assert.match(created.body.claim_code, /^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    assert.equal((await request('POST', '/auth/claim', { body: { email, password: PASSWORD } })).status, 400, 'email only');
+    assert.equal((await request('POST', '/auth/claim', { body: { email, password: PASSWORD, claim_code: 'AAAA-AAAA' } })).status, 400, 'wrong code');
+
+    const claimed = await request('POST', '/auth/claim', { body: { email, password: PASSWORD, claim_code: created.body.claim_code } });
     assert.equal(claimed.status, 200);
     const mine = await request('GET', '/assessments', { token: claimed.body.token });
     assert.equal(mine.body.assessments.length, 1, 'client sees the assessment the advisor recorded');
 
-    assert.equal((await request('POST', '/auth/claim', { body: { email, password: 'AnotherPass1' } })).status, 400);
+    assert.equal((await request('POST', '/auth/claim', { body: { email, password: 'AnotherPass1', claim_code: created.body.claim_code } })).status, 400, 'a code works once');
   });
 
   it('reports cohort impact as the average improvement across the caseload', async () => {

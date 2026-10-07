@@ -4,6 +4,8 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const { assignUniqueAdvisorCode } = require('./auth');
 const { clientIp } = require('../middleware/rateLimit');
 const auditLog = require('../services/auditLog');
+const { issueResetToken } = require('../services/passwordReset');
+const { appBase } = require('../services/email');
 
 const router = express.Router();
 const ROLES = ['business', 'advisor', 'admin'];
@@ -109,6 +111,40 @@ router.patch('/users/:id/active', async (req, res, next) => {
       ip: clientIp(req),
     });
     return res.json({ id: userId, is_active: req.body.active });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Lets an admin hand a locked-out user a one-time reset link (valid for an hour)
+// when email isn't set up or the user can't receive it.
+router.post('/users/:id/reset-link', async (req, res, next) => {
+  try {
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId) || userId < 1) {
+      return res.status(400).json({ message: 'Invalid user id' });
+    }
+    if (userId === req.user.id) {
+      return res.status(400).json({ message: 'Use the Account page to change your own password.' });
+    }
+    const rows = await query('SELECT id, email, is_active, password_hash FROM users WHERE id = :id LIMIT 1', { id: userId });
+    if (!rows.length) return res.status(404).json({ message: 'User not found' });
+    if (!rows[0].password_hash) {
+      return res.status(400).json({ message: 'That account has not been claimed yet, so it has no password to reset.' });
+    }
+    if (!rows[0].is_active) {
+      return res.status(400).json({ message: 'That account is deactivated. Reactivate it first.' });
+    }
+
+    const { token, expiresAt } = await issueResetToken(userId, req.user.id);
+    await auditLog.record('reset_link_issued', {
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      targetId: userId,
+      detail: rows[0].email,
+      ip: clientIp(req),
+    });
+    return res.json({ link: `${appBase(req)}/reset-password?token=${token}`, expires_at: expiresAt });
   } catch (err) {
     return next(err);
   }

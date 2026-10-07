@@ -18,6 +18,10 @@ import AdminPortal from './pages/AdminPortal';
 import Account from './pages/Account';
 import Privacy from './pages/Privacy';
 import Footer from './components/Footer';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import Terms from './pages/Terms';
+import SharedReport from './pages/SharedReport';
 
 export default function App() {
   return (
@@ -34,6 +38,10 @@ export default function App() {
                 <Route path="/register" element={<Register />} />
                 <Route path="/claim" element={<Claim />} />
                 <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/shared/:token" element={<SharedReport />} />
                 <Route
                   path="/account"
                   element={

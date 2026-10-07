@@ -27,10 +27,10 @@ export default function Navbar() {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-5">
+        <nav className="flex items-center gap-3 sm:gap-5">
           <NavLink to="/problems-solutions" className={linkClass}>
             <span className="inline-flex items-center gap-1.5">
-              <Lightbulb size={14} /> Problems &amp; Solutions
+              <Lightbulb size={14} /> <span className="sr-only sm:not-sr-only">Problems &amp; Solutions</span>
             </span>
           </NavLink>
           {isAuthenticated ? (
@@ -39,12 +39,12 @@ export default function Navbar() {
                 <>
                   <NavLink to="/dashboard" className={linkClass}>
                     <span className="inline-flex items-center gap-1.5">
-                      <LayoutDashboard size={14} /> Dashboard
+                      <LayoutDashboard size={14} /> <span className="sr-only sm:not-sr-only">Dashboard</span>
                     </span>
                   </NavLink>
                   <NavLink to="/assessment" className={linkClass}>
                     <span className="inline-flex items-center gap-1.5">
-                      <ClipboardList size={14} /> Assessment
+                      <ClipboardList size={14} /> <span className="sr-only sm:not-sr-only">Assessment</span>
                     </span>
                   </NavLink>
                 </>
@@ -52,20 +52,20 @@ export default function Navbar() {
               {user?.role === 'admin' && (
                 <NavLink to="/admin" className={linkClass}>
                   <span className="inline-flex items-center gap-1.5">
-                    <Shield size={14} /> Admin
+                    <Shield size={14} /> <span className="sr-only sm:not-sr-only">Admin</span>
                   </span>
                 </NavLink>
               )}
               {user?.role === 'advisor' && (
                 <NavLink to="/advisor" className={linkClass}>
                   <span className="inline-flex items-center gap-1.5">
-                    <Users size={14} /> Advisor
+                    <Users size={14} /> <span className="sr-only sm:not-sr-only">Advisor</span>
                   </span>
                 </NavLink>
               )}
               <NavLink to="/account" className={linkClass}>
                 <span className="inline-flex items-center gap-1.5">
-                  <UserCog size={14} /> Account
+                  <UserCog size={14} /> <span className="sr-only sm:not-sr-only">Account</span>
                 </span>
               </NavLink>
               <button
@@ -73,7 +73,7 @@ export default function Navbar() {
                 onClick={handleLogout}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-sm text-muted transition hover:border-amber/40 hover:text-text"
               >
-                <LogOut size={14} /> Log out
+                <LogOut size={14} /> <span className="sr-only sm:not-sr-only">Log out</span>
               </button>
             </>
           ) : (

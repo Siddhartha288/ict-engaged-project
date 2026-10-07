@@ -3,6 +3,10 @@ const { query, pool } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const assessments = require('./assessments');
 const audit = require('./audit');
+const { advisorOwnsBusiness } = require('../services/access');
+const { newClaimCode, hashClaimCode } = require('../services/tokens');
+const auditLog = require('../services/auditLog');
+const { clientIp } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
@@ -14,7 +18,6 @@ router.get(
   requireRole('advisor'),
   async (req, res, next) => {
     try {
-      const showAll = req.query.all === '1' || req.query.all === 'true';
       const rows = await query(
         `SELECT u.id, u.name, u.email, u.business_name, u.created_at, u.follow_up_status,
                 u.advisor_id, u.password_hash,
@@ -34,13 +37,13 @@ router.get(
              ORDER BY a2.created_at DESC, a2.id DESC
              LIMIT 1
            )
-         WHERE u.role = 'business' ${showAll ? '' : 'AND u.advisor_id = :advisor_id'}
+         WHERE u.role = 'business' AND u.advisor_id = :advisor_id
          ORDER BY a.total_score IS NULL ASC, a.total_score DESC, u.name ASC`,
-        showAll ? {} : { advisor_id: req.user.id }
+        { advisor_id: req.user.id }
       );
 
       return res.json({
-        scope: showAll ? 'all' : 'mine',
+        scope: 'mine',
         businesses: rows.map((r) => ({
           id: r.id,
           name: r.name,
@@ -101,10 +104,14 @@ router.post(
         return res.status(400).json({ message: 'Email is already registered' });
       }
 
+      // The client needs this code, plus their email, to claim the account — so
+      // knowing the email alone isn't enough. Only a hash is stored.
+      const claimCode = newClaimCode();
       const result = await query(
-        `INSERT INTO users (name, email, password_hash, role, business_name, sector_id, advisor_id)
-         VALUES (:name, :email, NULL, 'business', :business_name, :sector_id, :advisor_id)`,
+        `INSERT INTO users (name, email, password_hash, role, business_name, sector_id, advisor_id, claim_code_hash)
+         VALUES (:name, :email, NULL, 'business', :business_name, :sector_id, :advisor_id, :claim_code_hash)`,
         {
+          claim_code_hash: hashClaimCode(claimCode),
           name: name.trim(),
           email: email.trim().toLowerCase(),
           business_name: business_name ? String(business_name).trim() : null,
@@ -122,7 +129,7 @@ router.post(
         { id: result.insertId }
       );
 
-      return res.status(201).json(rows[0]);
+      return res.status(201).json({ ...rows[0], claim_code: claimCode });
     } catch (err) {
       return next(err);
     }
@@ -150,7 +157,8 @@ router.get(
          LIMIT 1`,
         { id: businessId }
       );
-      if (!rows.length) {
+      // Not found (rather than forbidden) for another advisor's client.
+      if (!rows.length || rows[0].advisor_id !== req.user.id) {
         return res.status(404).json({ message: 'Business not found' });
       }
       const business = rows[0];
@@ -202,8 +210,8 @@ router.get(
       }
 
       const rows = await query(
-        "SELECT sector_id FROM users WHERE id = :id AND role = 'business' LIMIT 1",
-        { id: businessId }
+        "SELECT sector_id FROM users WHERE id = :id AND role = 'business' AND advisor_id = :advisor_id LIMIT 1",
+        { id: businessId, advisor_id: req.user.id }
       );
       if (!rows.length) {
         return res.status(404).json({ message: 'Business not found' });
@@ -230,8 +238,8 @@ router.post(
       }
 
       const rows = await query(
-        "SELECT sector_id FROM users WHERE id = :id AND role = 'business' LIMIT 1",
-        { id: businessId }
+        "SELECT sector_id FROM users WHERE id = :id AND role = 'business' AND advisor_id = :advisor_id LIMIT 1",
+        { id: businessId, advisor_id: req.user.id }
       );
       if (!rows.length) {
         return res.status(404).json({ message: 'Business not found' });
@@ -270,8 +278,8 @@ router.patch(
       }
 
       const result = await query(
-        `UPDATE users SET follow_up_status = :status WHERE id = :id AND role = 'business'`,
-        { status, id: businessId }
+        `UPDATE users SET follow_up_status = :status WHERE id = :id AND role = 'business' AND advisor_id = :advisor_id`,
+        { status, id: businessId, advisor_id: req.user.id }
       );
       if (!result.affectedRows) {
         return res.status(404).json({ message: 'Business not found' });
@@ -290,12 +298,11 @@ router.get(
   requireRole('advisor'),
   async (req, res, next) => {
     try {
-      const showAll = req.query.all === '1' || req.query.all === 'true';
 
       const businessRows = await query(
         `SELECT id, follow_up_status FROM users
-         WHERE role = 'business' ${showAll ? '' : 'AND advisor_id = :advisor_id'}`,
-        showAll ? {} : { advisor_id: req.user.id }
+         WHERE role = 'business' AND advisor_id = :advisor_id`,
+        { advisor_id: req.user.id }
       );
 
       const statusBreakdown = { needs_follow_up: 0, on_track: 0, resolved: 0, none: 0 };
@@ -305,7 +312,7 @@ router.get(
 
       if (businessRows.length === 0) {
         return res.json({
-          scope: showAll ? 'all' : 'mine',
+          scope: 'mine',
           caseload_size: 0,
           assessed_count: 0,
           average_current_score: null,
@@ -348,7 +355,7 @@ router.get(
       }
 
       return res.json({
-        scope: showAll ? 'all' : 'mine',
+        scope: 'mine',
         caseload_size: businessRows.length,
         assessed_count: currentScoreCount,
         average_current_score: currentScoreCount
@@ -360,6 +367,44 @@ router.get(
         improved_business_count: improvementCount,
         status_breakdown: statusBreakdown,
       });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+// New claim code for a client who hasn't set their password yet (lost code, or an
+// account created before claim codes existed). Shown once; only its hash is kept.
+router.post(
+  '/businesses/:id/claim-code',
+  authenticate,
+  requireRole('advisor'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.id);
+      if (!Number.isInteger(businessId) || businessId < 1) {
+        return res.status(400).json({ message: 'Invalid business id' });
+      }
+      if (!(await advisorOwnsBusiness(req.user.id, businessId))) {
+        return res.status(404).json({ message: 'Business not found' });
+      }
+      const rows = await query('SELECT password_hash FROM users WHERE id = :id LIMIT 1', { id: businessId });
+      if (rows[0].password_hash) {
+        return res.status(400).json({ message: 'This client has already set a password.' });
+      }
+
+      const claimCode = newClaimCode();
+      await query('UPDATE users SET claim_code_hash = :hash WHERE id = :id', {
+        hash: hashClaimCode(claimCode),
+        id: businessId,
+      });
+      await auditLog.record('claim_code_issued', {
+        actorId: req.user.id,
+        actorEmail: req.user.email,
+        targetId: businessId,
+        ip: clientIp(req),
+      });
+      return res.json({ claim_code: claimCode });
     } catch (err) {
       return next(err);
     }
