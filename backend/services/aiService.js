@@ -1,42 +1,66 @@
 /**
- * AI roadmap generation — isolated so the provider can be swapped later.
- * Default: Anthropic Claude Messages API.
- * Falls back to a local rule-based roadmap if the API key is missing or the call fails,
- * so the MVP can still be demoed offline.
+ * AI roadmap generation — isolated so the provider can be swapped.
+ *
+ * Providers, in order of preference (the first one with a real key is used):
+ *   1. Google Gemini   — GEMINI_API_KEY    (has a free tier)
+ *   2. Anthropic Claude — ANTHROPIC_API_KEY
+ * Set AI_PROVIDER=gemini|anthropic to force one when both keys are present.
+ *
+ * If no key is set, or the call fails for any reason (bad key, rate limit,
+ * timeout, unusable reply), a local rule-based roadmap is returned instead, so
+ * the app never breaks. The result says which engine wrote it in `generated_by`
+ * ('gemini' | 'claude' | 'rules').
  */
 const { attachResources } = require('./resourceLinks');
 
-async function generateRoadmap(assessmentData) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const hasRealKey =
-    apiKey &&
-    apiKey.trim() &&
-    apiKey !== 'your_anthropic_api_key' &&
-    !apiKey.includes('your_');
+const REQUEST_TIMEOUT_MS = 30 * 1000;
+// "-latest" aliases follow Google's current Flash-Lite model (about 3s per roadmap; the full Flash model took ~18s), so the default doesn't
+// break when an individual model version is retired. Override with GEMINI_MODEL.
+const DEFAULT_GEMINI_MODEL = 'gemini-flash-lite-latest';
+const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-5-5';
 
-  if (!hasRealKey) {
-    console.warn('ANTHROPIC_API_KEY not set — using local roadmap fallback');
-    return attachResources(buildLocalRoadmap(assessmentData));
+function realKey(value) {
+  return Boolean(value && value.trim() && !value.includes('your_'));
+}
+
+function chooseProvider() {
+  const hasGemini = realKey(process.env.GEMINI_API_KEY);
+  const hasClaude = realKey(process.env.ANTHROPIC_API_KEY);
+  const forced = (process.env.AI_PROVIDER || '').trim().toLowerCase();
+  if (forced === 'gemini' && hasGemini) return 'gemini';
+  if (forced === 'anthropic' && hasClaude) return 'anthropic';
+  if (hasGemini) return 'gemini';
+  if (hasClaude) return 'anthropic';
+  return null;
+}
+
+async function generateRoadmap(assessmentData) {
+  const provider = chooseProvider();
+
+  if (!provider) {
+    console.warn('[ai] no GEMINI_API_KEY or ANTHROPIC_API_KEY set — using rule-based roadmap');
+    return withSource(attachResources(buildLocalRoadmap(assessmentData)), 'rules');
   }
 
   try {
-    const roadmap = await generateWithAnthropic(assessmentData, apiKey.trim());
-    return attachResources(roadmap);
+    const prompt = buildPrompt(assessmentData);
+    const text =
+      provider === 'gemini' ? await callGemini(prompt) : await callAnthropic(prompt);
+    const roadmap = parseRoadmapContent(text, assessmentData);
+    console.log(`[ai] roadmap written by ${provider}`);
+    return withSource(attachResources(roadmap), provider === 'gemini' ? 'gemini' : 'claude');
   } catch (err) {
-    console.error('Anthropic roadmap failed, using local fallback:', err.message);
-    return attachResources(buildLocalRoadmap(assessmentData));
+    console.error(`[ai] ${provider} failed, using rule-based roadmap:`, err.message);
+    return withSource(attachResources(buildLocalRoadmap(assessmentData)), 'rules');
   }
 }
 
-async function generateWithAnthropic(assessmentData, apiKey) {
-  const {
-    businessName,
-    sector,
-    totalScore,
-    level,
-    categories,
-    answers,
-  } = assessmentData;
+function withSource(roadmap, source) {
+  return { ...roadmap, generated_by: source };
+}
+
+function buildPrompt(assessmentData) {
+  const { businessName, sector, totalScore, level, categories, answers } = assessmentData;
 
   const weakCategories = (categories || [])
     .filter((c) => Number(c.score) < 67)
@@ -52,7 +76,9 @@ async function generateWithAnthropic(assessmentData, apiKey) {
     .map((a) => `- [${a.category}] ${a.question}: ${a.answer === 1 ? 'Yes' : 'No'}`)
     .join('\n');
 
-  const prompt = `You are a practical digital advisor for small businesses. Avoid generic fluff.
+  const categoryLabels = (categories || []).map((c) => c.label).join(', ');
+
+  return `You are a practical digital advisor for small businesses. Avoid generic fluff.
 
 Business: ${businessName || 'a small business'}${sector ? ` (sector: ${sector})` : ''}
 Overall digital maturity: ${totalScore}% — level "${level}"
@@ -81,6 +107,7 @@ Write a personalized action roadmap as JSON only (no markdown fences), with this
 Rules:
 - Include 3 to 5 prioritized actions (priority 1 = highest).
 - Each action must be specific and doable within 1-4 weeks.
+- The "category" of each action must be exactly one of: ${categoryLabels || 'the category labels above'}.
 - Tailor suggestions and examples to the business's sector where relevant (tools, channels, workflows typical for that sector).
 - Prioritize weak categories first.
 - Reference their actual No answers where useful.
@@ -88,24 +115,59 @@ Rules:
   assessment and address it directly - do not write an action that could apply to any business
   regardless of their answers.
 - Do not invent tools they must buy unless free/low-cost options exist.`;
+}
 
+async function callGemini(prompt) {
+  const model = (process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL).trim();
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-goog-api-key': process.env.GEMINI_API_KEY.trim(),
+      },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.6,
+          maxOutputTokens: 4096,
+          responseMimeType: 'application/json',
+        },
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Gemini API error (${response.status}): ${(await response.text()).slice(0, 300)}`);
+  }
+
+  const data = await response.json();
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const text = parts.map((p) => p.text || '').join('\n').trim();
+  if (!text) throw new Error('Gemini returned no text (blocked or empty response)');
+  return text;
+}
+
+async function callAnthropic(prompt) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': apiKey,
+      'x-api-key': process.env.ANTHROPIC_API_KEY.trim(),
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: (process.env.ANTHROPIC_MODEL || DEFAULT_ANTHROPIC_MODEL).trim(),
       max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }],
     }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Anthropic API error (${response.status}): ${errText}`);
+    throw new Error(`Anthropic API error (${response.status}): ${(await response.text()).slice(0, 300)}`);
   }
 
   const data = await response.json();
@@ -114,8 +176,8 @@ Rules:
     .map((block) => block.text)
     .join('\n')
     .trim();
-
-  return parseRoadmapContent(text);
+  if (!text) throw new Error('Anthropic returned no text');
+  return text;
 }
 
 function buildLocalRoadmap(assessmentData) {
@@ -195,37 +257,39 @@ function buildLocalRoadmap(assessmentData) {
   };
 }
 
-function parseRoadmapContent(text) {
-  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  try {
-    const parsed = JSON.parse(cleaned);
-    if (!parsed.intro || !Array.isArray(parsed.actions)) {
-      throw new Error('Missing intro or actions');
-    }
-    return {
-      intro: String(parsed.intro),
-      actions: parsed.actions.slice(0, 5).map((a, i) => ({
-        title: String(a.title || `Action ${i + 1}`),
-        priority: Number(a.priority) || i + 1,
-        timeframe: String(a.timeframe || '1-2 weeks'),
-        category: String(a.category || ''),
-        description: String(a.description || ''),
-      })),
-    };
-  } catch {
-    return {
-      intro: cleaned.slice(0, 500) || 'Here is a starter digital action plan based on your assessment.',
-      actions: [
-        {
-          title: 'Review your weakest digital areas',
-          priority: 1,
-          timeframe: '1 week',
-          category: '',
-          description: cleaned.slice(0, 800) || 'Focus on the categories with the lowest scores and pick one concrete improvement this week.',
-        },
-      ],
-    };
+// Strict on purpose: if the model's reply isn't a usable roadmap this throws, and
+// the caller falls back to the rule-based roadmap, which is better than showing
+// a half-parsed blob.
+function parseRoadmapContent(text, assessmentData = {}) {
+  let cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  if (!cleaned.startsWith('{')) {
+    // Tolerate a short preamble before the JSON.
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start === -1 || end <= start) throw new Error('Reply contained no JSON object');
+    cleaned = cleaned.slice(start, end + 1);
   }
+
+  const parsed = JSON.parse(cleaned);
+  if (!parsed.intro || !Array.isArray(parsed.actions) || parsed.actions.length === 0) {
+    throw new Error('Reply is missing "intro" or "actions"');
+  }
+
+  // Snap each action's category to one of the real labels (case-insensitive) so
+  // the curated vendor links in resourceLinks.js attach correctly.
+  const labels = (assessmentData.categories || []).map((c) => c.label);
+  const snap = (value) => labels.find((l) => l.toLowerCase() === String(value || '').trim().toLowerCase()) || String(value || '');
+
+  return {
+    intro: String(parsed.intro),
+    actions: parsed.actions.slice(0, 5).map((a, i) => ({
+      title: String(a.title || `Action ${i + 1}`),
+      priority: Number(a.priority) || i + 1,
+      timeframe: String(a.timeframe || '1-2 weeks'),
+      category: snap(a.category),
+      description: String(a.description || ''),
+    })),
+  };
 }
 
-module.exports = { generateRoadmap };
+module.exports = { generateRoadmap, parseRoadmapContent, chooseProvider };

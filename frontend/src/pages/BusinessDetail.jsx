@@ -13,6 +13,7 @@ import { ArrowLeft, ClipboardList, FileText, MessageSquare, Send, TrendingUp } f
 import api from '../api/client';
 import RadarScoreChart from '../components/RadarScoreChart';
 import RoadmapCard from '../components/RoadmapCard';
+import RoadmapSource from '../components/RoadmapSource';
 import WebsiteAuditCard from '../components/WebsiteAuditCard';
 
 const STATUS_OPTIONS = [
@@ -309,6 +310,7 @@ export default function BusinessDetail() {
                   {roadmap ? (
                     <div className="space-y-4">
                       <p className="text-sm leading-relaxed text-muted">{roadmap.intro}</p>
+                      <RoadmapSource source={roadmap.generated_by} />
                       {(() => {
                         const totalCost = roadmap.actions.reduce((s, a) => s + (Number(a.cost) || 0), 0);
                         const totalBenefit = roadmap.actions.reduce(

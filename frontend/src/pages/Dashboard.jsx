@@ -14,6 +14,7 @@ import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import RadarScoreChart from '../components/RadarScoreChart';
 import RoadmapCard from '../components/RoadmapCard';
+import RoadmapSource from '../components/RoadmapSource';
 import VendorFinder from '../components/VendorFinder';
 import WebsiteAuditCard from '../components/WebsiteAuditCard';
 
@@ -351,6 +352,7 @@ export default function Dashboard() {
               {roadmap ? (
                 <div className="space-y-4">
                   <p className="text-sm leading-relaxed text-muted">{roadmap.intro}</p>
+                  <RoadmapSource source={roadmap.generated_by} />
                   {(roadmap.actions || []).length > 0 && (
                     <div>
                       {(() => {

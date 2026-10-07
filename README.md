@@ -42,7 +42,7 @@ Built for ICT313 (aligned to UN SDG 9: Industry, Innovation and Infrastructure).
 - **Backend:** Node.js + Express
 - **Database:** MySQL 8 (`mysql2`, parameterised raw SQL)
 - **Auth:** JWT (7-day) + bcrypt
-- **AI:** Anthropic Claude via `backend/services/aiService.js`, with a rule-based fallback when no API key is set
+- **AI:** roadmap wording from Google Gemini (free tier available) or Anthropic Claude via `backend/services/aiService.js`, with an automatic rule-based fallback when no key is set or a call fails
 - **Tests:** Node's built-in test runner against a real MySQL test database
 
 ## Getting started
@@ -72,7 +72,11 @@ npm run dev              # http://localhost:5000
 | `PORT` | API port (default 5000) |
 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MySQL connection |
 | `JWT_SECRET` | Long random string used to sign tokens |
-| `ANTHROPIC_API_KEY` | Optional. Without it, roadmaps come from the built-in rule-based generator |
+| `GEMINI_API_KEY` | Optional. Free key from https://aistudio.google.com. Preferred provider when set |
+| `ANTHROPIC_API_KEY` | Optional. Used if no Gemini key (or `AI_PROVIDER=anthropic`) |
+| `GEMINI_MODEL`, `ANTHROPIC_MODEL`, `AI_PROVIDER` | Optional overrides (defaults: `gemini-flash-lite-latest`, `claude-sonnet-5-5`, Gemini first) |
+
+With neither key set, roadmaps come from the built-in rule-based generator. Each saved roadmap records which engine wrote it (`generated_by`), and the dashboard shows it. Run `cd backend && npm run ai:check` to verify a key: it lists the models the key can use and writes a sample roadmap.
 | `FRONTEND_ORIGIN` | CORS origin for the dev frontend (default `http://localhost:5173`) |
 
 ### 3. Frontend
@@ -106,7 +110,7 @@ Gives benchmarking, progress tracking and the advisor cohort report real numbers
 ## Testing and linting
 
 ```bash
-cd backend && npm test        # 45 tests: auth, RBAC, scoring, roadmap, benchmark, advisor flows, admin, security, SSRF
+cd backend && npm test        # 56 tests: auth, RBAC, scoring, roadmap, benchmark, advisor flows, admin, security, AI provider, SSRF
 cd frontend && npm run lint
 ```
 
@@ -168,7 +172,7 @@ Each category score is the percentage of "Yes" answers; the overall score is the
 - Advisor access is broad: any advisor account can view any business (assessments, roadmaps, website checks, notes), and anyone can register as an advisor. Restricting advisors to their own caseload would be the next hardening step. The privacy notice says so.
 - Claiming an advisor-created account needs only the client's email address (there is no email verification), so an advisor should tell the client to claim it promptly.
 - Login rate limiting is in memory and per process (see Security notes).
-- On the live site no AI key is configured, so roadmaps use the rule-based generator.
+- On the live site no AI key is configured, so roadmaps use the rule-based generator. The AI path is implemented and unit-tested against a stubbed network, but the Gemini free tier is rate-limited (and Google may use free-tier prompts to improve its products), so any AI failure silently falls back to the rule-based roadmap.
 - Scope versus the ICT313 proposal: three roles are implemented (business, advisor, admin). The proposal's Employee, Customer, and Supplier roles, and its operations/ROI-analytics workflows beyond the roadmap, are not built.
 
 ## Project structure

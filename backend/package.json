@@ -7,7 +7,8 @@
     "dev": "node --watch server.js",
     "start": "node server.js",
     "db:setup": "node load-schema.js && node seed-questions.js",
-    "test": "node --test --test-concurrency=1"
+    "test": "node --test --test-concurrency=1",
+    "ai:check": "node ai-check.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

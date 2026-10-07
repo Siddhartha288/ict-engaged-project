@@ -50,7 +50,10 @@ async function startApp() {
   // Must be set before the app (and its DB pool) is first required.
   process.env.DB_NAME = TEST_DB;
   process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-only-secret';
-  process.env.ANTHROPIC_API_KEY = ''; // force the deterministic rule-based roadmap
+  // Force the deterministic rule-based roadmap: tests must never call (or spend
+  // quota on) a real AI service, even if a key is present in .env.
+  process.env.ANTHROPIC_API_KEY = '';
+  process.env.GEMINI_API_KEY = '';
   process.env.BIZTRANSFORM_NO_LISTEN = '1';
 
   const app = require('../server');

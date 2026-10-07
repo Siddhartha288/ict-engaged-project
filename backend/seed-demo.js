@@ -12,9 +12,10 @@
  * without touching — real accounts. It goes through the real HTTP API (so
  * scoring, roadmaps and validation are the real code paths) and then backdates
  * timestamps so the history spans several weeks. Roadmap wording uses the
- * built-in rules; nothing is sent to an AI service.
+ * built-in rules (AI keys are blanked); nothing is sent to an AI service.
  */
 process.env.ANTHROPIC_API_KEY = '';
+process.env.GEMINI_API_KEY = '';
 process.env.BIZTRANSFORM_NO_LISTEN = '1';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'demo-seed-only-secret';
 
