@@ -240,7 +240,7 @@ export default function Dashboard() {
       </div>
 
       {detail && (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           <div className="rounded-xl border border-border bg-surface p-5">
             <div className="mb-4 flex items-baseline justify-between">
               <div>

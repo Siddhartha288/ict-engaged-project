@@ -220,7 +220,7 @@ export default function BusinessDetail() {
             </p>
           )}
         </div>
-        <div className="flex items-end gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <Link
             to={`/advisor/businesses/${business.id}/report`}
             target="_blank"
@@ -283,7 +283,7 @@ export default function BusinessDetail() {
           </div>
 
           {detail && (
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
               <div className="rounded-xl border border-border bg-surface p-5">
                 <div className="mb-4 flex items-baseline justify-between">
                   <div>

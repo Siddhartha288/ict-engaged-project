@@ -598,7 +598,7 @@ export default function AdminPortal() {
         <h1 className="font-display text-3xl font-bold">Platform administration</h1>
       </div>
 
-      <div className="mb-6 flex w-fit rounded-xl border border-border p-1">
+      <div className="mb-6 flex w-fit max-w-full flex-wrap rounded-xl border border-border p-1">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
