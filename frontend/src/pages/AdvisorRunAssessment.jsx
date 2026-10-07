@@ -2,10 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api/client';
 import QuestionCard from '../components/QuestionCard';
+import { useAuth } from '../context/AuthContext';
+import { loadDraft, saveDraft, clearDraft } from '../utils/assessmentDraft';
 
 export default function AdvisorRunAssessment() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const draftKey = user ? `assessment:${user.id}:client:${id}` : null;
+  const [resumed, setResumed] = useState(false);
   const [businessName, setBusinessName] = useState('');
   const [flatQuestions, setFlatQuestions] = useState([]);
   const [index, setIndex] = useState(0);
@@ -31,6 +36,11 @@ export default function AdvisorRunAssessment() {
           }
         }
         setFlatQuestions(flat);
+        // Pick up where a previous (interrupted) session with this client left off.
+        const saved = loadDraft(draftKey, flat);
+        setAnswers(saved);
+        setIndex(saved.length);
+        setResumed(saved.length > 0);
       } catch (err) {
         if (!cancelled) setError(err.response?.data?.message || 'Failed to load assessment');
       } finally {
@@ -40,7 +50,7 @@ export default function AdvisorRunAssessment() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, draftKey]);
 
   const current = flatQuestions[index];
   const progressLabel = useMemo(
@@ -55,6 +65,7 @@ export default function AdvisorRunAssessment() {
       const { data } = await api.post(`/admin/businesses/${id}/assessments`, {
         responses: finalAnswers,
       });
+      clearDraft(draftKey);
       navigate(`/advisor/businesses/${id}?assessment=${data.id}`, { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit assessment');
@@ -64,14 +75,24 @@ export default function AdvisorRunAssessment() {
 
   const onAnswer = async (answer) => {
     if (!current || submitting) return;
-    const nextAnswers = [...answers, { question_id: current.id, answer }];
+    // Rebuild from the answers before this question, so retrying after a
+    // failed submit replaces the last answer instead of adding a duplicate.
+    const nextAnswers = [...answers.slice(0, index), { question_id: current.id, answer }];
     setAnswers(nextAnswers);
 
     if (index + 1 >= flatQuestions.length) {
       await finish(nextAnswers);
     } else {
+      saveDraft(draftKey, nextAnswers);
       setIndex((i) => i + 1);
     }
+  };
+
+  const startOver = () => {
+    clearDraft(draftKey);
+    setAnswers([]);
+    setIndex(0);
+    setResumed(false);
   };
 
   if (loading) {
@@ -100,6 +121,15 @@ export default function AdvisorRunAssessment() {
       {error && (
         <div className="mx-auto mb-4 max-w-xl rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
           {error}
+        </div>
+      )}
+
+      {resumed && !submitting && (
+        <div className="mx-auto mb-4 flex max-w-xl items-center justify-between gap-3 rounded-lg border border-teal/30 bg-teal/10 px-3 py-2 text-sm text-teal">
+          <span>Welcome back — resuming from question {progressLabel.current}.</span>
+          <button type="button" onClick={startOver} className="shrink-0 underline hover:no-underline">
+            Start over
+          </button>
         </div>
       )}
 
